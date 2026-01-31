@@ -22,6 +22,6 @@
 ## Status
 - [x] Infrastructure setup
 - [x] Documentation centralized
-- [ ] Code migrated
+- [x] Code migrated
 - [ ] Dependencies resolved
 - [ ] Tests passing (próximo: CI validation)
