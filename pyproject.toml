@@ -1,4 +1,5 @@
 [tool.poetry]
+package-mode = false
 name = "wtnps-finadv"
 version = "0.1.0"
 description = "WTNPS FinAdv - Algorithmic Trading Framework"
