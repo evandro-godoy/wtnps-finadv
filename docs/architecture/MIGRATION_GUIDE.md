@@ -23,5 +23,5 @@
 - [x] Infrastructure setup
 - [x] Documentation centralized
 - [x] Code migrated
-- [ ] Dependencies resolved
+- [x] Dependencies resolved
 - [ ] Tests passing (próximo: CI validation)
