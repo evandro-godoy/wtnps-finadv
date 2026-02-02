@@ -4,6 +4,7 @@ import time
 import pandas as pd
 import numpy as np
 import logging
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 import yaml
@@ -13,6 +14,8 @@ from typing import Optional
 from src.data_handler.provider import MetaTraderProvider
 from src.strategies.lstm_volatility import LSTMVolatilityStrategy
 from src.analysis.context_analyzer import MarketContextAnalyzer
+from src.events import InferenceSignalEvent
+from src.core.event_bus import EventBus
 
 # Configuração do logging
 logging.basicConfig(
@@ -78,6 +81,13 @@ class RealTimeMonitor:
         self.ui_callback = ui_callback
         self.running = False
         
+        # Inicializa EventBus
+        self.event_bus = EventBus()
+        logger.info("EventBus inicializado")
+        
+        # Setup de logging estruturado e CSV
+        self._setup_signal_logging()
+        
         # Inicializa analisador de contexto técnico
         logger.info("Inicializando MarketContextAnalyzer...")
         self.context_analyzer = MarketContextAnalyzer(
@@ -124,6 +134,62 @@ Configurações do Monitor:
         """)
         
         logger.info("=" * 80)
+    
+    def _setup_signal_logging(self):
+        """Configura logging estruturado (JSON Lines) e CSV para sinais."""
+        # Cria diretórios
+        logs_dir = Path("logs")
+        reports_dir = Path("reports/live_signals")
+        logs_dir.mkdir(exist_ok=True)
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Arquivos com data atual
+        date_str = datetime.now().strftime("%Y%m%d")
+        self.json_log_path = logs_dir / f"live_signals_{date_str}.jsonl"
+        self.csv_path = reports_dir / f"signals_{date_str}.csv"
+        
+        # Cria CSV com header se não existir
+        if not self.csv_path.exists():
+            with open(self.csv_path, 'w', encoding='utf-8') as f:
+                f.write("timestamp,ticker,timeframe,ai_signal,probability,price,atr,ema_9,rsi,trend,pattern\n")
+        
+        logger.info(f"Signal logging configurado:")
+        logger.info(f"  JSON Log: {self.json_log_path}")
+        logger.info(f"  CSV Report: {self.csv_path}")
+    
+    def _log_signal_to_files(self, signal_event: InferenceSignalEvent):
+        """Salva sinal em JSON Lines e CSV."""
+        # JSON Lines (estruturado)
+        json_entry = {
+            "timestamp": signal_event.timestamp.isoformat(),
+            "ticker": signal_event.ticker,
+            "timeframe": signal_event.timeframe,
+            "ai_signal": signal_event.ai_signal,
+            "probability": signal_event.probability,
+            "price": signal_event.price,
+            "indicators": signal_event.indicators
+        }
+        
+        with open(self.json_log_path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(json_entry) + '\n')
+        
+        # CSV (para análise rápida)
+        csv_line = (
+            f"{signal_event.timestamp.isoformat()},"
+            f"{signal_event.ticker},"
+            f"{signal_event.timeframe},"
+            f"{signal_event.ai_signal},"
+            f"{signal_event.probability:.4f},"
+            f"{signal_event.price:.2f},"
+            f"{signal_event.indicators.get('atr', 0):.2f},"
+            f"{signal_event.indicators.get('ema_9', 0):.2f},"
+            f"{signal_event.indicators.get('rsi', 0):.2f},"
+            f"{signal_event.indicators.get('trend', '')},"
+            f"{signal_event.indicators.get('pattern', '')}\n"
+        )
+        
+        with open(self.csv_path, 'a', encoding='utf-8') as f:
+            f.write(csv_line)
     
     def _load_config(self, config_path: str) -> dict:
         """Carrega o arquivo de configuração YAML."""
@@ -295,6 +361,41 @@ Configurações do Monitor:
             
             # 9. Gera logs/alertas conforme probabilidade
             prob_pct = prob_class1 * 100
+            
+            # Converte direção para padrão português (COMPRA/VENDA/HOLD)
+            if prob_class1 >= 0.5:  # Acima do threshold de decisão
+                ai_signal = "COMPRA" if direction == "CALL" else "VENDA"
+            else:
+                ai_signal = "HOLD"
+            
+            # Cria evento de inferência
+            inference_event = InferenceSignalEvent(
+                ticker=self.ticker,
+                ai_signal=ai_signal,
+                probability=prob_class1,
+                price=current_price,
+                indicators={
+                    'atr': float(features_df['atr'].iloc[-1]) if 'atr' in features_df.columns else 0.0,
+                    'ema_9': float(features_df['ema_9'].iloc[-1]) if 'ema_9' in features_df.columns else 0.0,
+                    'ema_20': float(ema_20),
+                    'rsi': float(context.get('rsi', 0)),
+                    'trend': context.get('trend', ''),
+                    'trend_strength': context.get('trend_strength', ''),
+                    'pattern': context.get('pattern', ''),
+                    'support': float(context.get('support', 0)),
+                    'resistance': float(context.get('resistance', 0)),
+                    'signal_valid': signal_valid,
+                    'validation_reason': validation_reason
+                },
+                timeframe=self.timeframe_str,
+                timestamp=current_time
+            )
+            
+            # Publica evento no EventBus
+            self.event_bus.publish(inference_event)
+            
+            # Salva em arquivos (JSON Lines + CSV)
+            self._log_signal_to_files(inference_event)
             
             # Prepara dados para callback de UI (sempre envia dados do último candle)
             if self.ui_callback:

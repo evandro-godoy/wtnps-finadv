@@ -80,3 +80,30 @@ class OrderEvent(BaseEvent):
         self.price = price
         self.timestamp = timestamp or datetime.now()
         self.event_type = "ORDER"
+
+
+@dataclass
+class InferenceSignalEvent(BaseEvent):
+    """Evento de sinal de inferência ML (sem execução de ordem).
+    
+    Usado para monitoramento analítico e visualização em tempo real.
+    Contém predição do modelo, probabilidade e indicadores técnicos.
+    """
+    ticker: str
+    ai_signal: str  # COMPRA, VENDA, HOLD
+    probability: float  # 0.0 - 1.0
+    price: float
+    indicators: Dict[str, Any]  # ATR, EMAs, RSI, etc
+    timeframe: Optional[str] = None
+    
+    def __init__(self, ticker: str, ai_signal: str, probability: float, price: float,
+                 indicators: Dict[str, Any], timeframe: Optional[str] = None,
+                 timestamp: Optional[datetime] = None):
+        self.ticker = ticker
+        self.ai_signal = ai_signal
+        self.probability = probability
+        self.price = price
+        self.indicators = indicators
+        self.timeframe = timeframe
+        self.timestamp = timestamp or datetime.now()
+        self.event_type = "INFERENCE_SIGNAL"

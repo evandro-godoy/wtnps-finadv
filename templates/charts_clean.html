@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WTNPS Trade - Live Monitor</title>
+    <link rel="stylesheet" href="/static/css/charts_clean.css">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1>📈 WTNPS Trade</h1>
+                <span class="subtitle">Live Inference Monitor</span>
+            </div>
+            <div class="header-center">
+                <div class="ticker-info">
+                    <span id="ticker" class="ticker">WDO$</span>
+                    <span id="timeframe" class="timeframe">M5</span>
+                    <span id="status-indicator" class="status-indicator offline"></span>
+                    <span id="connection-status">Offline</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <span id="current-time" class="current-time"></span>
+                <span id="last-update" class="last-update">Aguardando dados...</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Chart Section -->
+            <div class="chart-section">
+                <div id="candlestick-chart" class="chart-container"></div>
+            </div>
+
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3>🎯 Último Sinal</h3>
+                    <div id="latest-signal" class="signal-card">
+                        <div class="signal-item">
+                            <span class="signal-label">Sinal:</span>
+                            <span id="signal-type" class="signal-value">-</span>
+                        </div>
+                        <div class="signal-item">
+                            <span class="signal-label">Probabilidade:</span>
+                            <span id="signal-probability" class="signal-value">-</span>
+                        </div>
+                        <div class="signal-item">
+                            <span class="signal-label">Preço:</span>
+                            <span id="signal-price" class="signal-value">-</span>
+                        </div>
+                        <div class="signal-item">
+                            <span class="signal-label">Tendência:</span>
+                            <span id="signal-trend" class="signal-value">-</span>
+                        </div>
+                        <div class="signal-item">
+                            <span class="signal-label">RSI:</span>
+                            <span id="signal-rsi" class="signal-value">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>📊 Histórico de Sinais</h3>
+                    <div id="signal-history" class="signal-history">
+                        <p class="empty-state">Aguardando sinais...</p>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>ℹ️ Informações</h3>
+                    <div class="info-panel">
+                        <div class="info-item">
+                            <span class="info-label">Candles:</span>
+                            <span id="candle-count" class="info-value">0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Sinais Hoje:</span>
+                            <span id="signals-count" class="info-value">0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Uptime:</span>
+                            <span id="uptime" class="info-value">0s</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/live_chart.js"></script>
+</body>
+</html>
