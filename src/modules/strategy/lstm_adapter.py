@@ -116,11 +116,11 @@ class LSTMVolatilityAdapter:
         try:
             # Converte evento para linha de DataFrame com índice temporal
             new_row = pd.DataFrame([{
-                'open': event.open,
-                'high': event.high,
-                'low': event.low,
-                'close': event.close,
-                'volume': event.volume
+                'Open': event.open,
+                'High': event.high,
+                'Low': event.low,
+                'Close': event.close,
+                'Volume': event.volume
             }], index=[event.timestamp])  # Define timestamp como índice
             
             # Adiciona ao buffer

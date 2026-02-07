@@ -112,15 +112,13 @@ class TradingSystem:
         
         try:
             # Buscar candles iniciais do MT5
-            events = self.provider.get_latest_candles(
+            # Publicar candles iniciais no EventBus
+            self.provider.publish_to_eventbus(
                 symbol=settings.TICKER_TARGET,
                 timeframe="M5",
-                count=200  # Buffer inicial
+                n=200
             )
-            
-            # Publicar no EventBus
-            self.provider.publish_to_eventbus(events)
-            logger.info(f"✅ {len(events)} candles iniciais processados")
+            logger.info("✅ Candles iniciais publicados no EventBus")
             
             # Loop principal (aguarda novos candles)
             while self.running:

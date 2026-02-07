@@ -68,6 +68,23 @@ src/live/monitor_engine.py              # EventBus + logging integration
 
 ---
 
+### 🔄 SPRINT 3.1 - THE GREAT MERGE (EM ANDAMENTO)
+
+**Objetivo:** Consolidar a migracao do newapp para a estrutura canonica, unificando provider, UI e testes.
+
+**Backlog (Sprint 3.1):**
+1. [ARCH-005 Migrate MonitorEngine to mt5_provider](.github/issues/sprint3/ARCH-005-monitorengine-mt5-provider.md)
+2. [FULLSTACK-006 Hybrid UI assets](.github/issues/sprint3/FULLSTACK-006-hybrid-ui-assets.md)
+3. [QUANT-007 LSTM adapter consolidation](.github/issues/sprint3/QUANT-007-lstm-adapter-consolidation.md)
+4. [DEVOPS-008 Poetry dependencies](.github/issues/sprint3/DEVOPS-008-poetry-deps.md)
+5. [GUARDIAN-009 Post-merge QA](.github/issues/sprint3/GUARDIAN-009-post-merge-qa.md)
+
+**Notas:**
+- Provider canonico: mt5_provider.py (colunas capitalizadas na entrada; normalizacao interna quando necessario).
+- UI base: Plotly com virtual scroll e Split.js.
+
+---
+
 ### ✅ SPRINT 2 - COMPLETO (Anterior)
 
 **Objetivo:** Refatoração de GUI e Sistema de Replay

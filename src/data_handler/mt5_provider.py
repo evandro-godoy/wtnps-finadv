@@ -106,6 +106,10 @@ class MetaTraderProvider:
             error_msg = f"❌ Erro ao inicializar MT5: {type(e).__name__}: {e}"
             logger.critical(error_msg)
             raise ConnectionError(error_msg) from e
+
+    def is_connected(self) -> bool:
+        """Compat method for legacy provider interface."""
+        return self._validate_connection()
     
     @staticmethod
     def _validate_connection() -> bool:
@@ -271,6 +275,10 @@ class MetaTraderProvider:
             logger.info("✅ MT5 desconectado com sucesso")
         except Exception as e:
             logger.error(f"⚠️  Erro ao desconectar MT5: {e}")
+
+    def close_connection(self):
+        """Alias para shutdown (compatibilidade com legado)."""
+        self.shutdown()
     
     def __del__(self):
         """Destrutor - garante shutdown ao destruir objeto."""

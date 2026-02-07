@@ -33,7 +33,9 @@ ws_manager = WebSocketManager()
 # Get template directory
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TEMPLATES_DIR = BASE_DIR / "templates"
-STATIC_DIR = TEMPLATES_DIR / "static"
+ROOT_STATIC_DIR = BASE_DIR / "static"
+ROOT_STATIC_READY = (ROOT_STATIC_DIR / "css").exists() or (ROOT_STATIC_DIR / "js").exists()
+STATIC_DIR = ROOT_STATIC_DIR if ROOT_STATIC_READY else TEMPLATES_DIR / "static"
 
 
 class StatusResponse(BaseModel):
@@ -326,7 +328,7 @@ async def run_monitor_loop():
     def run_in_thread():
         try:
             monitor_engine.start_time = datetime.now()
-            monitor_engine.run()
+            monitor_engine.start()
         except Exception as e:
             logger.error(f"Error in monitor loop: {e}")
     

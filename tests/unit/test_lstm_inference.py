@@ -17,7 +17,7 @@ import logging
 from datetime import datetime, timedelta
 
 from src.strategies.lstm_volatility import LSTMVolatilityStrategy, LSTMVolatilityWrapper
-from src.data_handler.provider import MetaTraderProvider
+from src.data_handler.mt5_provider import MetaTraderProvider
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -58,14 +58,10 @@ class TestLSTMInference:
         """Fixture para dados históricos de teste (último mês)."""
         try:
             provider = MetaTraderProvider()
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=60)  # 2 meses para garantir dados suficientes
-            
-            data = provider.get_data(
-                ticker="WDO$",
-                start_date=start_date,
-                end_date=end_date,
-                timeframe="M5"
+            data = provider.get_latest_candles(
+                symbol="WDO$",
+                timeframe="M5",
+                n=2000
             )
             
             assert isinstance(data, pd.DataFrame), "Provider deve retornar DataFrame"

@@ -27,6 +27,9 @@ websockets = "^16.0"
 plotly = "^6.5.2"
 mplfinance = "^0.12.10b0"
 bokeh = "^3.8.2"
+yfinance = "^0.2.65"
+psutil = "^7.1.0"
+tkcalendar = "^1.6.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.2"

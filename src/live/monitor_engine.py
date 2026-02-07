@@ -8,10 +8,10 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 import yaml
-import MetaTrader5 as mt5
 from typing import Optional
 
-from src.data_handler.provider import MetaTraderProvider
+from src.data_handler.mt5_provider import MetaTraderProvider
+from src.core.config import settings
 from src.strategies.lstm_volatility import LSTMVolatilityStrategy
 from src.analysis.context_analyzer import MarketContextAnalyzer
 from src.events import InferenceSignalEvent
@@ -73,7 +73,6 @@ class RealTimeMonitor:
         
         self.ticker = ticker
         self.timeframe_str = timeframe_str
-        self.timeframe = self._get_mt5_timeframe(timeframe_str)
         self.threshold_alert = threshold_alert
         self.threshold_log = threshold_log
         self.buffer_size = buffer_size
@@ -202,26 +201,6 @@ Configurações do Monitor:
         
         return config
     
-    def _get_mt5_timeframe(self, tf_str: str) -> int:
-        """Converte string de timeframe para constante MT5."""
-        tf_map = {
-            "M1": mt5.TIMEFRAME_M1,
-            "M5": mt5.TIMEFRAME_M5,
-            "M15": mt5.TIMEFRAME_M15,
-            "M30": mt5.TIMEFRAME_M30,
-            "H1": mt5.TIMEFRAME_H1,
-            "H4": mt5.TIMEFRAME_H4,
-            "D1": mt5.TIMEFRAME_D1,
-            "W1": mt5.TIMEFRAME_W1,
-            "MN1": mt5.TIMEFRAME_MN1
-        }
-        
-        tf_constant = tf_map.get(tf_str.upper())
-        if tf_constant is None:
-            raise ValueError(f"Timeframe inválido: {tf_str}. Válidos: {list(tf_map.keys())}")
-        
-        return tf_constant
-    
     def _load_strategy(self) -> LSTMVolatilityStrategy:
         """Carrega a estratégia a partir da configuração."""
         # Busca configuração do ativo
@@ -262,9 +241,16 @@ Configurações do Monitor:
     
     def _get_model_path(self) -> str:
         """Retorna o caminho base para carregar o modelo."""
-        model_dir = self.config.get('global_settings', {}).get('model_directory', 'models')
+        model_dir = self.config.get('global_settings', {}).get('model_directory')
+        if not model_dir:
+            model_dir = str(settings.MODELS_DIR)
+
+        model_dir_path = Path(model_dir)
+        if not model_dir_path.is_absolute():
+            model_dir_path = settings.BASE_DIR / model_dir_path
+
         model_prefix = f"{self.ticker}_{self.strategy.__class__.__name__}_{self.timeframe_str}_prod"
-        return str(Path(model_dir) / model_prefix)
+        return str(model_dir_path / model_prefix)
     
     def _warm_up(self):
         """
@@ -275,16 +261,16 @@ Configurações do Monitor:
         
         # Busca dados históricos (provider já retorna apenas candles fechados)
         data = self.provider.get_latest_candles(
-            ticker=self.ticker,
-            timeframe=self.timeframe,
-            count=self.buffer_size
+            symbol=self.ticker,
+            timeframe=self.timeframe_str,
+            n=self.buffer_size
         )
         
         if data.empty:
             raise RuntimeError(f"Falha ao buscar dados históricos para {self.ticker}")
         
         # Valida colunas obrigatórias
-        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
         missing = [col for col in required_cols if col not in data.columns]
         if missing:
             raise ValueError(f"Colunas faltando nos dados: {missing}")
@@ -343,7 +329,7 @@ Configurações do Monitor:
             # 5. Obtém dados do último candle
             last_candle = self.buffer_df.iloc[-1]
             current_time = self.buffer_df.index[-1]
-            current_price = last_candle['close']
+            current_price = last_candle['Close']
             ema_20 = features_df['ema_20'].iloc[-1]
             
             # 6. Determina direção baseada em tendência (EMA)
@@ -402,11 +388,11 @@ Configurações do Monitor:
                 # Dados completos do último candle para UI (inclui contexto técnico)
                 candle_data = {
                     'timestamp': current_time,
-                    'open': last_candle['open'],
-                    'high': last_candle['high'],
-                    'low': last_candle['low'],
+                    'open': last_candle['Open'],
+                    'high': last_candle['High'],
+                    'low': last_candle['Low'],
                     'close': current_price,
-                    'volume': last_candle['volume'],
+                    'volume': last_candle['Volume'],
                     'probability': prob_pct,
                     'direction': direction,
                     'ema_20': ema_20,
@@ -496,11 +482,11 @@ Configurações do Monitor:
         logger.warning("Tentando reconectar ao MT5...")
         
         # Shutdown e reinit
-        mt5.shutdown()
+        self.provider.shutdown()
         time.sleep(2)
-        
+
         self.provider = MetaTraderProvider()
-        
+
         if self.provider.is_connected():
             logger.info("✓ Reconexão ao MT5 bem-sucedida")
             return True
@@ -605,9 +591,9 @@ Pressione Ctrl+C para interromper.
                     
                     # 3. Busca último candle fechado (não o em formação)
                     new_data = self.provider.get_latest_candles(
-                        ticker=self.ticker,
-                        timeframe=self.timeframe,
-                        count=1
+                        symbol=self.ticker,
+                        timeframe=self.timeframe_str,
+                        n=1
                     )
                     
                     if new_data.empty:
@@ -656,7 +642,6 @@ Pressione Ctrl+C para interromper.
             self.running = False
             logger.info("Fechando conexão MT5...")
             self.provider.close_connection()
-            mt5.shutdown()
             logger.info("=" * 80)
             logger.info("MONITOR ENCERRADO")
             logger.info("=" * 80)

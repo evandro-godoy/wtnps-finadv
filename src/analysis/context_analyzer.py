@@ -97,8 +97,8 @@ class MarketContextAnalyzer:
                 logger.warning(f"DataFrame insuficiente para análise: {len(df)} linhas")
                 return self._empty_analysis()
             
-            # Copia para não modificar original
-            data = df.copy()
+            # Copia para não modificar original e normaliza colunas OHLCV
+            data = self._normalize_ohlc_columns(df.copy())
             
             # Calcula indicadores
             data = self._calculate_indicators(data)
@@ -147,6 +147,21 @@ class MarketContextAnalyzer:
         except Exception as e:
             logger.error(f"Erro na análise de contexto: {e}", exc_info=True)
             return self._empty_analysis()
+
+    def _normalize_ohlc_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Normaliza colunas OHLCV para lowercase se vierem capitalizadas."""
+        column_map = {
+            'Open': 'open',
+            'High': 'high',
+            'Low': 'low',
+            'Close': 'close',
+            'Volume': 'volume'
+        }
+
+        if any(col in df.columns for col in column_map):
+            return df.rename(columns=column_map)
+
+        return df
     
     def _calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calcula todos os indicadores técnicos necessários."""

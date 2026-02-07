@@ -309,7 +309,7 @@ class LSTMVolatilityStrategy(BaseStrategy):
         - Morfologia de candles
         - Time embeddings
         """
-        df = data.copy()
+        df = self._normalize_ohlc_columns(data.copy())
         
         # --- 1. DINÂMICA DE PREÇO ---
         
@@ -395,7 +395,7 @@ class LSTMVolatilityStrategy(BaseStrategy):
         Filtro Day Trade: Zera o target para candles após as 17:00 (horário limite)
         para evitar sinais próximos ao fechamento do pregão.
         """
-        df = data.copy()
+        df = self._normalize_ohlc_columns(data.copy())
         
         # Calcular amplitude futura (Max High - Min Low nos próximos períodos)
         indexer = pd.api.indexers.FixedForwardWindowIndexer(window_size=self.target_period)
@@ -431,6 +431,21 @@ class LSTMVolatilityStrategy(BaseStrategy):
         target = target[:-self.target_period]
         
         return pd.Series(target, index=df.index[:-self.target_period])
+
+    def _normalize_ohlc_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Normaliza colunas OHLCV para lowercase se vierem capitalizadas."""
+        column_map = {
+            'Open': 'open',
+            'High': 'high',
+            'Low': 'low',
+            'Close': 'close',
+            'Volume': 'volume'
+        }
+
+        if any(col in df.columns for col in column_map):
+            return df.rename(columns=column_map)
+
+        return df
 
     def define_model(self) -> BaseEstimator:
         """Retorna uma instância do wrapper do modelo LSTM Volatility."""

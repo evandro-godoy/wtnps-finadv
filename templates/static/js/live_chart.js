@@ -6,7 +6,7 @@
 const WS_URL = 'ws://localhost:8000/ws/live-signals';
 const API_BASE_URL = 'http://localhost:8000';
 const MAX_CANDLES = 200; // Maximum number of candles to display
-const MAX_HISTORY_ITEMS = 10; // Maximum signal history items to show
+const MAX_HISTORY_ITEMS = 200; // Maximum signal history items to show
 
 // State
 let ws = null;
@@ -21,11 +21,13 @@ let chartData = {
 let signalHistory = [];
 let signalsCount = 0;
 let startTime = null;
+let historyScroller = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Initializing WTNPS Trade Live Monitor...');
     initializeChart();
+    initializeSplitLayout();
     connectWebSocket();
     updateCurrentTime();
     setInterval(updateCurrentTime, 1000);
@@ -36,6 +38,10 @@ document.addEventListener('DOMContentLoaded', () => {
  * Initialize Plotly candlestick chart
  */
 function initializeChart() {
+    const ink = '#0b1b2b';
+    const grid = '#d7cfc1';
+    const bg = '#fffaf3';
+
     const trace = {
         x: chartData.x,
         close: chartData.close,
@@ -44,8 +50,8 @@ function initializeChart() {
         open: chartData.open,
         type: 'candlestick',
         name: 'Price',
-        increasing: { line: { color: '#10b981' } },
-        decreasing: { line: { color: '#ef4444' } }
+        increasing: { line: { color: '#16a34a' } },
+        decreasing: { line: { color: '#dc2626' } }
     };
 
     const layout = {
@@ -54,15 +60,15 @@ function initializeChart() {
             title: 'Time',
             type: 'date',
             rangeslider: { visible: false },
-            gridcolor: '#475569'
+            gridcolor: grid
         },
         yaxis: {
             title: 'Price',
-            gridcolor: '#475569'
+            gridcolor: grid
         },
-        paper_bgcolor: '#1e293b',
-        plot_bgcolor: '#1e293b',
-        font: { color: '#f1f5f9' },
+        paper_bgcolor: bg,
+        plot_bgcolor: bg,
+        font: { color: ink, family: 'IBM Plex Sans, sans-serif' },
         margin: { l: 60, r: 30, t: 60, b: 60 }
     };
 
@@ -73,6 +79,20 @@ function initializeChart() {
     };
 
     Plotly.newPlot('candlestick-chart', [trace], layout, config);
+}
+
+function initializeSplitLayout() {
+    if (typeof Split === 'undefined') {
+        return;
+    }
+
+    Split(['#chart-pane', '#sidebar-pane'], {
+        sizes: [72, 28],
+        minSize: [320, 260],
+        gutterSize: 10,
+        gutterAlign: 'center',
+        direction: window.innerWidth < 900 ? 'vertical' : 'horizontal'
+    });
 }
 
 /**
@@ -204,7 +224,7 @@ function updateChart() {
             showarrow: false,
             font: {
                 size: 20,
-                color: s.signal === 'COMPRA' ? '#10b981' : '#ef4444'
+                color: s.signal === 'COMPRA' ? '#16a34a' : '#dc2626'
             },
             yshift: s.signal === 'COMPRA' ? -20 : 20
         }));
@@ -254,14 +274,11 @@ function renderSignalHistory() {
         return;
     }
 
-    historyContainer.innerHTML = signalHistory.map(signal => `
-        <div class="signal-history-item ${signal.ai_signal.toLowerCase()}">
-            <div class="signal-history-time">${formatTime(new Date(signal.timestamp))}</div>
-            <div class="signal-history-content">
-                <strong>${signal.ai_signal}</strong> (${(signal.probability * 100).toFixed(1)}%) @ ${signal.price.toFixed(2)}
-            </div>
-        </div>
-    `).join('');
+    if (!historyScroller) {
+        historyScroller = new PredictionVirtualScroll(historyContainer, { rowHeight: 64 });
+    }
+
+    historyScroller.setItems(signalHistory);
 }
 
 /**
@@ -301,7 +318,7 @@ function updateStats() {
  */
 async function fetchLatestSignals() {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/signals/latest?limit=50`);
+        const response = await fetch(`${API_BASE_URL}/api/signals/latest?limit=200`);
         
         if (!response.ok) {
             console.warn('Failed to fetch latest signals');
