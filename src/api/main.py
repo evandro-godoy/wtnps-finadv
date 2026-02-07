@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from pathlib import Path
 
 from src.api.websocket_manager import WebSocketManager
+from src.api.routes.chart_data import router as chart_data_router
 from src.core.config import settings
 from src.live.monitor_engine import RealTimeMonitor
 from src.events import InferenceSignalEvent
@@ -134,6 +135,9 @@ app.add_middleware(
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+# Register routers
+app.include_router(chart_data_router)
 
 
 # Event handler for inference signals
