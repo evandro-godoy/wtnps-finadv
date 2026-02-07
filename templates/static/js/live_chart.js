@@ -1,103 +1,238 @@
 /**
- * live_chart.js - WebSocket client and Plotly chart management for WTNPS Trade
+ * live_chart.js - Candlestick chart with indicator overlays for WTNPS Trade Demo
+ *
+ * Fetches historical candles from /api/chart-data (default 1000 bars, WDO$ M5)
+ * and renders:
+ *   - Candlestick trace
+ *   - SMA 21  (Blue   #0000FF)
+ *   - SMA 200 (Black  #000000)
+ *   - EMA 9   (Red    #FF0000)
+ *
+ * Also connects to the WebSocket for live signal updates.
  */
 
+// ---------------------------------------------------------------------------
 // Configuration
-const WS_URL = 'ws://localhost:8000/ws/live-signals';
-const API_BASE_URL = 'http://localhost:8000';
-const MAX_CANDLES = 200; // Maximum number of candles to display
-const MAX_HISTORY_ITEMS = 200; // Maximum signal history items to show
+// ---------------------------------------------------------------------------
+const WS_URL = `ws://${location.host}/ws/live-signals`;
+const API_BASE = `${location.origin}`;
+const CHART_BARS = 1000;
+const MAX_HISTORY_ITEMS = 200;
 
+// ---------------------------------------------------------------------------
 // State
+// ---------------------------------------------------------------------------
 let ws = null;
-let chartData = {
-    x: [],
-    open: [],
-    high: [],
-    low: [],
-    close: [],
-    signals: []
-};
 let signalHistory = [];
 let signalsCount = 0;
 let startTime = null;
 let historyScroller = null;
+let chartRendered = false;
 
-// Initialize on page load
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Initializing WTNPS Trade Live Monitor...');
-    initializeChart();
+    console.log('Initializing WTNPS Trade Charts...');
     initializeSplitLayout();
-    connectWebSocket();
     updateCurrentTime();
     setInterval(updateCurrentTime, 1000);
-    fetchLatestSignals();
+    fetchChartData();
+    connectWebSocket();
 });
 
-/**
- * Initialize Plotly candlestick chart
- */
-function initializeChart() {
-    const ink = '#0b1b2b';
-    const grid = '#d7cfc1';
-    const bg = '#fffaf3';
+// ---------------------------------------------------------------------------
+// Fetch historical chart data and render
+// ---------------------------------------------------------------------------
+async function fetchChartData() {
+    const statusEl = document.getElementById('connection-status');
+    if (statusEl) statusEl.textContent = 'Loading data...';
 
-    const trace = {
-        x: chartData.x,
-        close: chartData.close,
-        high: chartData.high,
-        low: chartData.low,
-        open: chartData.open,
+    try {
+        const resp = await fetch(`${API_BASE}/api/chart-data?ticker=WDO$&bars=${CHART_BARS}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        console.log(`Received ${data.bars} candles for ${data.ticker}`);
+        renderChart(data);
+
+        // Update prediction sidebar if available
+        if (data.prediction) {
+            updateLatestSignal({
+                ai_signal: data.prediction.ai_signal,
+                probability: data.prediction.probability,
+                price: data.prediction.price,
+                timestamp: new Date().toISOString(),
+                indicators: {}
+            });
+        }
+    } catch (err) {
+        console.error('Failed to fetch chart data:', err);
+        renderEmptyChart();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Render full chart with Plotly
+// ---------------------------------------------------------------------------
+function renderChart(data) {
+    const candles = data.candles;
+    if (!candles || candles.length === 0) {
+        renderEmptyChart();
+        return;
+    }
+
+    const times   = candles.map(c => c.time);
+    const opens   = candles.map(c => c.open);
+    const highs   = candles.map(c => c.high);
+    const lows    = candles.map(c => c.low);
+    const closes  = candles.map(c => c.close);
+    const sma21   = candles.map(c => c.sma_21);
+    const sma200  = candles.map(c => c.sma_200);
+    const ema9    = candles.map(c => c.ema_9);
+
+    // --- Traces ---
+    const candlestickTrace = {
+        x: times,
+        open: opens,
+        high: highs,
+        low: lows,
+        close: closes,
         type: 'candlestick',
         name: 'Price',
         increasing: { line: { color: '#16a34a' } },
-        decreasing: { line: { color: '#dc2626' } }
+        decreasing: { line: { color: '#dc2626' } },
+        whiskerwidth: 0.5,
+        hoverinfo: 'x+text',
     };
 
+    const sma21Trace = {
+        x: times,
+        y: sma21,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'SMA 21',
+        line: { color: '#0000FF', width: 1.5 },
+        hovertemplate: 'SMA 21: %{y:.2f}<extra></extra>',
+        connectgaps: false,
+    };
+
+    const sma200Trace = {
+        x: times,
+        y: sma200,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'SMA 200',
+        line: { color: '#000000', width: 1.5 },
+        hovertemplate: 'SMA 200: %{y:.2f}<extra></extra>',
+        connectgaps: false,
+    };
+
+    const ema9Trace = {
+        x: times,
+        y: ema9,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'EMA 9',
+        line: { color: '#FF0000', width: 1.5 },
+        hovertemplate: 'EMA 9: %{y:.2f}<extra></extra>',
+        connectgaps: false,
+    };
+
+    // --- Layout ---
+    const bg   = '#fffaf3';
+    const grid = '#d7cfc1';
+    const ink  = '#0b1b2b';
+
     const layout = {
-        title: 'Live Candlestick Chart',
+        title: {
+            text: `${data.ticker} — ${data.timeframe}  (${data.bars} barras)`,
+            font: { family: 'Space Grotesk, sans-serif', size: 18, color: ink },
+        },
         xaxis: {
-            title: 'Time',
             type: 'date',
             rangeslider: { visible: false },
-            gridcolor: grid
+            gridcolor: grid,
+            linecolor: grid,
         },
         yaxis: {
             title: 'Price',
-            gridcolor: grid
+            gridcolor: grid,
+            linecolor: grid,
+            side: 'right',
         },
         paper_bgcolor: bg,
         plot_bgcolor: bg,
         font: { color: ink, family: 'IBM Plex Sans, sans-serif' },
-        margin: { l: 60, r: 30, t: 60, b: 60 }
+        margin: { l: 10, r: 60, t: 50, b: 50 },
+        legend: {
+            orientation: 'h',
+            x: 0, y: 1.08,
+            font: { size: 11 },
+        },
+        hovermode: 'x unified',
     };
 
     const config = {
         responsive: true,
         displayModeBar: true,
-        displaylogo: false
+        displaylogo: false,
+        scrollZoom: true,
     };
 
-    Plotly.newPlot('candlestick-chart', [trace], layout, config);
+    Plotly.newPlot(
+        'candlestick-chart',
+        [candlestickTrace, sma21Trace, sma200Trace, ema9Trace],
+        layout,
+        config,
+    );
+
+    chartRendered = true;
+
+    // Update info panel
+    const countEl = document.getElementById('candle-count');
+    if (countEl) countEl.textContent = data.bars;
 }
 
-function initializeSplitLayout() {
-    if (typeof Split === 'undefined') {
-        return;
-    }
+function renderEmptyChart() {
+    const bg   = '#fffaf3';
+    const grid = '#d7cfc1';
+    const ink  = '#0b1b2b';
 
+    Plotly.newPlot(
+        'candlestick-chart',
+        [{
+            x: [], open: [], high: [], low: [], close: [],
+            type: 'candlestick', name: 'Price',
+        }],
+        {
+            title: 'Aguardando dados...',
+            xaxis: { rangeslider: { visible: false }, gridcolor: grid },
+            yaxis: { gridcolor: grid },
+            paper_bgcolor: bg, plot_bgcolor: bg,
+            font: { color: ink, family: 'IBM Plex Sans, sans-serif' },
+            margin: { l: 60, r: 30, t: 60, b: 60 },
+        },
+        { responsive: true, displaylogo: false },
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Split Layout
+// ---------------------------------------------------------------------------
+function initializeSplitLayout() {
+    if (typeof Split === 'undefined') return;
     Split(['#chart-pane', '#sidebar-pane'], {
         sizes: [72, 28],
         minSize: [320, 260],
         gutterSize: 10,
         gutterAlign: 'center',
-        direction: window.innerWidth < 900 ? 'vertical' : 'horizontal'
+        direction: window.innerWidth < 900 ? 'vertical' : 'horizontal',
     });
 }
 
-/**
- * Connect to WebSocket server
- */
+// ---------------------------------------------------------------------------
+// WebSocket for live signals
+// ---------------------------------------------------------------------------
 function connectWebSocket() {
     console.log(`Connecting to WebSocket: ${WS_URL}`);
     updateConnectionStatus('Connecting...', false);
@@ -108,259 +243,120 @@ function connectWebSocket() {
         console.log('WebSocket connected');
         updateConnectionStatus('Online', true);
         startTime = Date.now();
-        
-        // Send ping every 30 seconds to keep connection alive
         setInterval(() => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send('ping');
-            }
+            if (ws && ws.readyState === WebSocket.OPEN) ws.send('ping');
         }, 30000);
     };
 
     ws.onmessage = (event) => {
         try {
             const message = JSON.parse(event.data);
-            console.log('Received message:', message);
-
             if (message.type === 'signal') {
-                handleSignal(message.data);
-            } else if (message.type === 'connection') {
-                console.log('Connection message:', message.message);
-            } else if (message.type === 'pong') {
-                console.log('Pong received');
+                handleLiveSignal(message.data);
             }
-        } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
+        } catch (err) {
+            console.error('WS parse error:', err);
         }
     };
 
-    ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        updateConnectionStatus('Error', false);
-    };
+    ws.onerror = () => updateConnectionStatus('Error', false);
 
     ws.onclose = () => {
-        console.log('WebSocket disconnected');
         updateConnectionStatus('Offline', false);
-        
-        // Attempt to reconnect after 5 seconds
-        setTimeout(() => {
-            console.log('Attempting to reconnect...');
-            connectWebSocket();
-        }, 5000);
+        setTimeout(connectWebSocket, 5000);
     };
 }
 
-/**
- * Handle incoming signal data
- */
-function handleSignal(signal) {
-    console.log('Processing signal:', signal);
-
-    // Add candle data (assuming signal contains OHLC for the current candle)
-    const timestamp = new Date(signal.timestamp);
-    
-    // Update chart data
-    chartData.x.push(timestamp);
-    chartData.close.push(signal.price);
-    // Note: We don't have OHLC data from the signal, so we approximate
-    // In production, you'd want to fetch full candle data
-    chartData.open.push(signal.price);
-    chartData.high.push(signal.price * 1.001);
-    chartData.low.push(signal.price * 0.999);
-    
-    chartData.signals.push({
-        time: timestamp,
-        signal: signal.ai_signal,
-        probability: signal.probability,
-        price: signal.price
-    });
-
-    // Limit data size
-    if (chartData.x.length > MAX_CANDLES) {
-        chartData.x.shift();
-        chartData.open.shift();
-        chartData.high.shift();
-        chartData.low.shift();
-        chartData.close.shift();
-        chartData.signals.shift();
-    }
-
-    // Update chart
-    updateChart();
-
-    // Update latest signal display
+// ---------------------------------------------------------------------------
+// Live signal handler
+// ---------------------------------------------------------------------------
+function handleLiveSignal(signal) {
     updateLatestSignal(signal);
-
-    // Add to signal history
     addSignalToHistory(signal);
-
-    // Update stats
     signalsCount++;
     updateStats();
 }
 
-/**
- * Update Plotly chart with new data
- */
-function updateChart() {
-    const update = {
-        x: [chartData.x],
-        close: [chartData.close],
-        high: [chartData.high],
-        low: [chartData.low],
-        open: [chartData.open]
+// ---------------------------------------------------------------------------
+// Sidebar updates
+// ---------------------------------------------------------------------------
+function updateLatestSignal(signal) {
+    const setEl = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
     };
 
-    Plotly.restyle('candlestick-chart', update, [0]);
+    setEl('signal-type', signal.ai_signal);
+    const sigEl = document.getElementById('signal-type');
+    if (sigEl) sigEl.className = `signal-value ${signal.ai_signal.toLowerCase()}`;
 
-    // Add signal markers (arrows)
-    const annotations = chartData.signals
-        .filter(s => s.signal !== 'HOLD')
-        .map(s => ({
-            x: s.time,
-            y: s.price,
-            text: s.signal === 'COMPRA' ? '▲' : '▼',
-            showarrow: false,
-            font: {
-                size: 20,
-                color: s.signal === 'COMPRA' ? '#16a34a' : '#dc2626'
-            },
-            yshift: s.signal === 'COMPRA' ? -20 : 20
-        }));
+    setEl('signal-probability', `${(signal.probability * 100).toFixed(1)}%`);
+    setEl('signal-price', signal.price != null ? signal.price.toFixed(2) : '-');
 
-    Plotly.relayout('candlestick-chart', { annotations });
+    const ind = signal.indicators || {};
+    setEl('signal-trend', ind.trend || '-');
+    setEl('signal-rsi', ind.rsi ? ind.rsi.toFixed(1) : '-');
+
+    setEl('last-update', `Atualizado: ${formatTime(new Date(signal.timestamp))}`);
 }
 
-/**
- * Update latest signal display in sidebar
- */
-function updateLatestSignal(signal) {
-    document.getElementById('signal-type').textContent = signal.ai_signal;
-    document.getElementById('signal-type').className = `signal-value ${signal.ai_signal.toLowerCase()}`;
-    
-    document.getElementById('signal-probability').textContent = `${(signal.probability * 100).toFixed(1)}%`;
-    document.getElementById('signal-price').textContent = signal.price.toFixed(2);
-    
-    const indicators = signal.indicators || {};
-    document.getElementById('signal-trend').textContent = indicators.trend || '-';
-    document.getElementById('signal-rsi').textContent = indicators.rsi ? indicators.rsi.toFixed(1) : '-';
-    
-    document.getElementById('last-update').textContent = `Atualizado: ${formatTime(new Date(signal.timestamp))}`;
-}
-
-/**
- * Add signal to history list
- */
 function addSignalToHistory(signal) {
     signalHistory.unshift(signal);
-    
-    // Limit history size
-    if (signalHistory.length > MAX_HISTORY_ITEMS) {
-        signalHistory.pop();
-    }
-
+    if (signalHistory.length > MAX_HISTORY_ITEMS) signalHistory.pop();
     renderSignalHistory();
 }
 
-/**
- * Render signal history list
- */
 function renderSignalHistory() {
-    const historyContainer = document.getElementById('signal-history');
-    
+    const container = document.getElementById('signal-history');
+    if (!container) return;
+
     if (signalHistory.length === 0) {
-        historyContainer.innerHTML = '<p class="empty-state">Aguardando sinais...</p>';
+        container.innerHTML = '<p class="empty-state">Aguardando sinais...</p>';
         return;
     }
 
-    if (!historyScroller) {
-        historyScroller = new PredictionVirtualScroll(historyContainer, { rowHeight: 64 });
+    if (!historyScroller && typeof PredictionVirtualScroll !== 'undefined') {
+        historyScroller = new PredictionVirtualScroll(container, { rowHeight: 64 });
     }
 
-    historyScroller.setItems(signalHistory);
+    if (historyScroller) {
+        historyScroller.setItems(signalHistory);
+    }
 }
 
-/**
- * Update connection status indicator
- */
+// ---------------------------------------------------------------------------
+// UI helpers
+// ---------------------------------------------------------------------------
 function updateConnectionStatus(text, isOnline) {
     const statusText = document.getElementById('connection-status');
     const statusIndicator = document.getElementById('status-indicator');
-    
-    statusText.textContent = text;
-    statusIndicator.className = `status-indicator ${isOnline ? 'online' : 'offline'}`;
+    if (statusText) statusText.textContent = text;
+    if (statusIndicator) statusIndicator.className = `status-indicator ${isOnline ? 'online' : 'offline'}`;
 }
 
-/**
- * Update current time display
- */
 function updateCurrentTime() {
-    const now = new Date();
-    document.getElementById('current-time').textContent = formatTime(now);
+    const el = document.getElementById('current-time');
+    if (el) el.textContent = formatTime(new Date());
 }
 
-/**
- * Update stats (candles, signals, uptime)
- */
 function updateStats() {
-    document.getElementById('candle-count').textContent = chartData.x.length;
-    document.getElementById('signals-count').textContent = signalsCount;
-    
+    const el = document.getElementById('signals-count');
+    if (el) el.textContent = signalsCount;
     if (startTime) {
-        const uptime = Math.floor((Date.now() - startTime) / 1000);
-        document.getElementById('uptime').textContent = formatUptime(uptime);
+        const uptimeEl = document.getElementById('uptime');
+        if (uptimeEl) uptimeEl.textContent = formatUptime(Math.floor((Date.now() - startTime) / 1000));
     }
 }
 
-/**
- * Fetch latest signals from REST API (on page load)
- */
-async function fetchLatestSignals() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/signals/latest?limit=200`);
-        
-        if (!response.ok) {
-            console.warn('Failed to fetch latest signals');
-            return;
-        }
-
-        const signals = await response.json();
-        console.log(`Fetched ${signals.length} historical signals`);
-
-        // Process historical signals
-        signals.forEach(signal => {
-            handleSignal(signal);
-        });
-    } catch (error) {
-        console.error('Error fetching latest signals:', error);
-    }
-}
-
-/**
- * Format timestamp for display
- */
 function formatTime(date) {
-    return date.toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
+    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-/**
- * Format uptime in human-readable format
- */
 function formatUptime(seconds) {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-        return `${hours}h ${minutes}m ${secs}s`;
-    } else if (minutes > 0) {
-        return `${minutes}m ${secs}s`;
-    } else {
-        return `${secs}s`;
-    }
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
 }

@@ -1,19 +1,318 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WTNPS Trade Demo</title>
-  <link rel="stylesheet" href="/static/css/charts_clean.css" />
+  <title>WTNPS Trade - Home</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --ink: #0b1b2b;
+      --ink-soft: #1c2b3d;
+      --sand: #f7f2e9;
+      --fog: #efe8dc;
+      --accent: #0ea5a4;
+      --accent-2: #f97316;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --muted: #6b7280;
+      --border: #d7cfc1;
+      --card: #fff8ee;
+      --shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+      --sidebar-width: 260px;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: radial-gradient(circle at top, #fff5e6 0%, var(--sand) 35%, #f2eadf 100%);
+      color: var(--ink);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+    }
+
+    /* ─── Sidebar ─── */
+    .sidebar {
+      width: var(--sidebar-width);
+      min-height: 100vh;
+      background: var(--card);
+      border-right: 2px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow);
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 10;
+    }
+
+    .sidebar-brand {
+      padding: 1.5rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-brand h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .sidebar-brand .version {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 1rem 0;
+    }
+
+    .nav-section-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      padding: 0.75rem 1.25rem 0.4rem;
+      font-weight: 600;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.65rem 1.25rem;
+      font-size: 0.9rem;
+      color: var(--ink-soft);
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+      border-left: 3px solid transparent;
+    }
+
+    .nav-link:hover {
+      background: var(--fog);
+      color: var(--accent);
+    }
+
+    .nav-link.active {
+      background: var(--fog);
+      color: var(--accent);
+      border-left-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .nav-link .icon {
+      font-size: 1.1rem;
+      width: 1.5rem;
+      text-align: center;
+    }
+
+    .sidebar-footer {
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    /* ─── Main Content ─── */
+    .main-content {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      padding: 2.5rem 3rem;
+    }
+
+    .page-header {
+      margin-bottom: 2.5rem;
+    }
+
+    .page-header h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+
+    .page-header p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    /* ─── Cards Grid ─── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.75rem;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.15);
+    }
+
+    .card-icon {
+      font-size: 2rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .card h3 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .card p {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 1.25rem;
+      line-height: 1.5;
+    }
+
+    .card-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+      transition: gap 0.2s;
+    }
+
+    .card-link:hover {
+      gap: 0.65rem;
+    }
+
+    /* ─── Status Bar ─── */
+    .status-bar {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .status-label {
+      font-weight: 600;
+      color: var(--ink-soft);
+    }
+
+    .status-detail {
+      color: var(--muted);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 768px) {
+      .sidebar { width: 100%; min-height: auto; position: relative; border-right: none; border-bottom: 2px solid var(--border); }
+      body { flex-direction: column; }
+      .main-content { margin-left: 0; padding: 1.5rem; }
+    }
+  </style>
 </head>
 <body>
-  <main class="container">
-    <h1>WTNPS Trade Demo</h1>
-    <p>Live monitor is running in the background. Open the charts view to see signals.</p>
-    <div class="actions">
-      <a class="button" href="/charts">Open Charts</a>
-      <a class="button" href="/api/status">API Status</a>
+
+  <!-- Sidebar Navigation -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <h1>📈 WTNPS Trade</h1>
+      <div class="version">v3.0.0 — Demo</div>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-section-title">Menu</div>
+      <a href="/" class="nav-link active">
+        <span class="icon">🏠</span> Home
+      </a>
+      <a href="/charts" class="nav-link">
+        <span class="icon">📊</span> Charts
+      </a>
+
+      <div class="nav-section-title">API</div>
+      <a href="/api/status" class="nav-link">
+        <span class="icon">⚡</span> Status
+      </a>
+      <a href="/health" class="nav-link">
+        <span class="icon">💚</span> Health Check
+      </a>
+      <a href="/docs" class="nav-link">
+        <span class="icon">📖</span> API Docs
+      </a>
+    </div>
+
+    <div class="sidebar-footer">
+      &copy; 2026 WTNPS Trade
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <div class="page-header">
+      <h2>Dashboard</h2>
+      <p>Monitoramento em tempo real com sinais de ML/DRL para operações no mini-dólar.</p>
+    </div>
+
+    <div class="cards-grid">
+      <!-- Charts Card (Primary) -->
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <h3>Charts — Live Monitor</h3>
+        <p>Gráfico de Candlestick com indicadores técnicos (SMA 21, SMA 200, EMA 9) e sinais de inferência em tempo real.</p>
+        <a href="/charts" class="card-link">Abrir Charts →</a>
+      </div>
+
+      <!-- API Status Card -->
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <h3>API Status</h3>
+        <p>Verifique o estado do monitor engine, ticker ativo, uptime e último candle processado.</p>
+        <a href="/api/status" class="card-link">Ver Status →</a>
+      </div>
+
+      <!-- API Docs Card -->
+      <div class="card">
+        <div class="card-icon">📖</div>
+        <h3>Documentação API</h3>
+        <p>Swagger UI com todos os endpoints REST e WebSocket disponíveis para integração.</p>
+        <a href="/docs" class="card-link">Abrir Docs →</a>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span class="status-dot"></span>
+      <span class="status-label">Monitor Engine</span>
+      <span class="status-detail">WDO$ · M5 · Aguardando sinais...</span>
     </div>
   </main>
+
 </body>
 </html>
