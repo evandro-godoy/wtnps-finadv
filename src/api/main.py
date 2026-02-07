@@ -6,9 +6,10 @@ Provides REST API and WebSocket endpoints for real-time signal visualization.
 
 import asyncio
 import logging
+import threading
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -20,6 +21,7 @@ from pydantic import BaseModel
 from pathlib import Path
 
 from src.api.websocket_manager import WebSocketManager
+from src.core.config import settings
 from src.live.monitor_engine import RealTimeMonitor
 from src.events import InferenceSignalEvent
 
@@ -28,6 +30,8 @@ logger = logging.getLogger(__name__)
 
 # Global instances
 monitor_engine: Optional[RealTimeMonitor] = None
+monitor_thread: Optional[threading.Thread] = None
+monitor_lock = threading.Lock()
 ws_manager = WebSocketManager()
 
 # Get template directory
@@ -58,20 +62,55 @@ class SignalResponse(BaseModel):
     timeframe: str
 
 
+def _read_template(template_name: str) -> Optional[str]:
+    html_path = TEMPLATES_DIR / template_name
+    if not html_path.exists():
+        return None
+    with open(html_path, "r", encoding="utf-8") as file_handle:
+        return file_handle.read()
+
+
+def _start_monitor_engine(ticker: str, timeframe: str) -> Tuple[bool, str]:
+    """Start the monitor in a background thread to avoid blocking the API."""
+    global monitor_engine, monitor_thread
+
+    with monitor_lock:
+        if monitor_engine and monitor_engine.running:
+            return False, "already running"
+        if monitor_thread and monitor_thread.is_alive():
+            return False, "initializing"
+
+        def run_engine() -> None:
+            global monitor_engine
+            try:
+                engine = RealTimeMonitor(
+                    ticker=ticker,
+                    timeframe_str=timeframe,
+                    ui_callback=None,
+                )
+                engine.event_bus.subscribe("INFERENCE_SIGNAL", handle_inference_signal)
+                engine.event_bus.subscribe("INFERENCE_SIGNAL", cache_signal)
+                monitor_engine = engine
+                engine.start_time = datetime.now()
+                engine.start()
+            except Exception as exc:
+                logger.error(f"Error starting monitor engine: {exc}")
+                monitor_engine = None
+
+        monitor_thread = threading.Thread(target=run_engine, daemon=True)
+        monitor_thread.start()
+        return True, "starting"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for FastAPI app."""
-    global monitor_engine
-    
     logger.info("Starting FastAPI application...")
-    
-    # Initialize monitor engine in background
-    # Note: Actual monitoring loop should be started separately
-    # to allow API to be responsive
-    
+
+    _start_monitor_engine(settings.TICKER_TARGET, "M5")
+
     yield
-    
-    # Cleanup
+
     logger.info("Shutting down FastAPI application...")
     if monitor_engine and monitor_engine.running:
         monitor_engine.stop()
@@ -122,21 +161,34 @@ def handle_inference_signal(event: InferenceSignalEvent):
 
 @app.get("/", tags=["Health"])
 async def root():
-    """Root endpoint - serves HTML interface."""
-    html_path = TEMPLATES_DIR / "charts_clean.html"
-    
-    if html_path.exists():
-        with open(html_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
+    """Root endpoint - serves home template."""
+    html_content = _read_template("home.html")
+    if html_content:
         return HTMLResponse(content=html_content)
-    else:
-        return {
-            "service": "WTNPS Trade Live Monitor API",
-            "version": "3.0.0",
-            "status": "running",
+
+    return {
+        "service": "WTNPS Trade Live Monitor API",
+        "version": "3.0.0",
+        "status": "running",
+        "timestamp": datetime.now().isoformat(),
+        "message": "HTML template not found. API endpoints are available.",
+    }
+
+
+@app.get("/charts", tags=["UI"])
+async def charts():
+    """Charts endpoint - serves charting template."""
+    html_content = _read_template("charts_clean.html")
+    if html_content:
+        return HTMLResponse(content=html_content)
+
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "Charts template not found",
             "timestamp": datetime.now().isoformat(),
-            "message": "HTML template not found. API endpoints are available."
-        }
+        },
+    )
 
 
 @app.get("/health", tags=["Health"])
@@ -257,40 +309,20 @@ async def websocket_live_signals(websocket: WebSocket):
 @app.post("/api/monitor/start", tags=["Monitor"])
 async def start_monitor(ticker: str = "WDO$", timeframe: str = "M5"):
     """Start the monitor engine (for testing/manual control)."""
-    global monitor_engine
-    
-    if monitor_engine and monitor_engine.running:
+    started, reason = _start_monitor_engine(ticker, timeframe)
+
+    if not started:
         return JSONResponse(
             status_code=400,
-            content={"error": "Monitor already running"}
+            content={"error": f"Monitor {reason}"},
         )
-    
-    try:
-        monitor_engine = RealTimeMonitor(
-            ticker=ticker,
-            timeframe_str=timeframe,
-            ui_callback=None  # No UI callback for API mode
-        )
-        
-        # Subscribe to inference events
-        monitor_engine.event_bus.subscribe("INFERENCE_SIGNAL", handle_inference_signal)
-        monitor_engine.event_bus.subscribe("INFERENCE_SIGNAL", cache_signal)
-        
-        # Start monitor in background task
-        asyncio.create_task(run_monitor_loop())
-        
-        return {
-            "status": "started",
-            "ticker": ticker,
-            "timeframe": timeframe,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Error starting monitor: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)}
-        )
+
+    return {
+        "status": "starting",
+        "ticker": ticker,
+        "timeframe": timeframe,
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 @app.post("/api/monitor/stop", tags=["Monitor"])
@@ -313,27 +345,8 @@ async def stop_monitor():
 
 
 async def run_monitor_loop():
-    """Background task to run monitor loop."""
-    global monitor_engine
-    
-    if not monitor_engine:
-        logger.error("Monitor engine not initialized")
-        return
-    
-    logger.info("Starting monitor loop in background task...")
-    
-    # Run monitor in thread to avoid blocking
-    import threading
-    
-    def run_in_thread():
-        try:
-            monitor_engine.start_time = datetime.now()
-            monitor_engine.start()
-        except Exception as e:
-            logger.error(f"Error in monitor loop: {e}")
-    
-    thread = threading.Thread(target=run_in_thread, daemon=True)
-    thread.start()
+    """Deprecated: kept for backward compatibility."""
+    logger.warning("run_monitor_loop is deprecated; use _start_monitor_engine instead.")
 
 
 if __name__ == "__main__":

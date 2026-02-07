@@ -1,144 +1,24 @@
-# src/main.py
+"""Demo entrypoint that serves the API and UI."""
+
 import os
-import sys
-import time
-import logging
-import signal
-from pathlib import Path
-from typing import List
-from dotenv import load_dotenv
 
-# Carregar .env
-load_dotenv()
+import uvicorn
 
-from src.core.config import settings
-from src.core.event_bus import event_bus
-from src.data_handler.mt5_provider import MetaTraderProvider
-# Importação condicional para não quebrar se o QUANT ainda não terminou
-try:
-    from src.modules.strategy.lstm_adapter import LSTMVolatilityAdapter
-    STRATEGY_AVAILABLE = True
-except ImportError:
-    STRATEGY_AVAILABLE = False
 
-# Configuração de Logs
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(settings.LOGS_DIR / "system.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger("MAIN")
+def run() -> None:
+    host = os.getenv("WTNPS_HOST", "0.0.0.0")
+    port = int(os.getenv("WTNPS_PORT", "8000"))
+    reload_enabled = os.getenv("WTNPS_RELOAD", "false").lower() == "true"
+    log_level = os.getenv("WTNPS_LOG_LEVEL", "info")
 
-class TradingSystem:
-    """Orquestrador principal do sistema Monolítico."""
-    
-    def __init__(self):
-        self.running = False
-        self.adapters = []
-        self.provider = None
-        logger.info(f"🚀 Inicializando {settings.PROJECT_NAME} v{settings.VERSION}")
+    uvicorn.run(
+        "src.api.main:app",
+        host=host,
+        port=port,
+        reload=reload_enabled,
+        log_level=log_level,
+    )
 
-    def _validate_environment(self):
-        """
-        Valida variáveis de ambiente críticas.
-        
-        Raises:
-            EnvironmentError: Se variável obrigatória estiver ausente
-        """
-        required_vars = ["MT5_PATH", "MT5_LOGIN", "MT5_SERVER"]
-        missing = [var for var in required_vars if not os.getenv(var)]
-        
-        if missing:
-            error_msg = f"Variáveis de ambiente ausentes: {missing}. Configure .env antes de iniciar."
-            logger.critical(error_msg)
-            raise EnvironmentError(error_msg)
-        
-        logger.info("✅ Variáveis de ambiente validadas")
-
-    def _register_signals(self):
-        """Captura Ctrl+C para shutdown gracioso."""
-        signal.signal(signal.SIGINT, self.shutdown)
-        signal.signal(signal.SIGTERM, self.shutdown)
-
-    def _load_modules(self):
-        """Instancia e registra os adaptadores no EventBus."""
-        # 1. Conectar ao MetaTrader5 (Fail Fast)
-        try:
-            self.provider = MetaTraderProvider()
-            logger.info("✅ MetaTraderProvider inicializado")
-        except ConnectionError as e:
-            logger.critical(f"❌ Falha ao conectar MT5: {e}")
-            logger.critical("Sistema encerrando - MT5 é dependência crítica")
-            sys.exit(1)
-        
-        # 2. Carregar Adaptador LSTM (Fail Fast)
-        if STRATEGY_AVAILABLE:
-            try:
-                # O prefixo do modelo deve bater com o que temos na pasta models/
-                # Ex: WDO$_LSTMVolatilityStrategy_M5_prod
-                model_prefix = settings.MODELS_DIR / f"{settings.TICKER_TARGET}_LSTMVolatilityStrategy_M5_prod"
-                
-                strategy = LSTMVolatilityAdapter(str(model_prefix), event_bus=event_bus)
-                
-                # Inscreve a estratégia para ouvir dados de mercado
-                event_bus.subscribe("MARKET_DATA", strategy.on_market_data)
-                
-                self.adapters.append(strategy)
-                logger.info("✅ Módulo QUANT (LSTM Adapter) carregado e ouvindo 'MARKET_DATA'.")
-            except (FileNotFoundError, ValueError) as e:
-                logger.critical(f"❌ Falha ao carregar modelo: {e}")
-                logger.critical("Sistema encerrando - Modelo LSTM é dependência crítica")
-                sys.exit(1)
-        else:
-            logger.warning("⚠️ Módulo QUANT ainda não implementado ou com erro de importação.")
-
-    def start(self):
-        """Inicia o loop principal."""
-        # Validar .env primeiro
-        try:
-            self._validate_environment()
-        except EnvironmentError as e:
-            logger.critical(str(e))
-            sys.exit(1)
-        
-        self._register_signals()
-        self._load_modules()
-        
-        self.running = True
-        logger.info("🟢 Sistema ONLINE. Buscando dados do MT5...")
-        
-        try:
-            # Buscar candles iniciais do MT5
-            # Publicar candles iniciais no EventBus
-            self.provider.publish_to_eventbus(
-                symbol=settings.TICKER_TARGET,
-                timeframe="M5",
-                n=200
-            )
-            logger.info("✅ Candles iniciais publicados no EventBus")
-            
-            # Loop principal (aguarda novos candles)
-            while self.running:
-                # TODO Sprint 3: Implementar polling de novos candles
-                time.sleep(5)
-                
-        except KeyboardInterrupt:
-            self.shutdown()
-        except Exception as e:
-            logger.critical(f"Erro fatal no loop principal: {e}")
-            self.shutdown()
-            sys.exit(1)
-
-    def shutdown(self, signum=None, frame=None):
-        """Encerramento seguro."""
-        logger.info("🛑 Recebido sinal de parada. Desligando sistema...")
-        self.running = False
-        # Aqui fecharíamos conexões de DB ou corretora se tivéssemos
-        sys.exit(0)
 
 if __name__ == "__main__":
-    system = TradingSystem()
-    system.start()
+    run()
