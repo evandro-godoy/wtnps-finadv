@@ -85,8 +85,8 @@ class MetaTraderProvider:
                     f"     - Credenciais (se aplicável)\n"
                 )
                 logger.critical(error_msg)
-                logger.critical("❌ Sistema encerrando - MT5 é uma dependência crítica")
-                sys.exit(1)  # FAIL FAST: Encerra imediatamente
+                logger.critical("❌ MT5 é uma dependência crítica — levantando ConnectionError")
+                raise ConnectionError(error_msg)
             
             MetaTraderProvider._initialized = True
             

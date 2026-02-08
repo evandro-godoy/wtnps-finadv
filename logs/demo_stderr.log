@@ -1,0 +1,21 @@
+2026-02-07 21:31:28.725459: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2026-02-07 21:32:49.164045: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+INFO:     Started server process [14276]
+INFO:     Waiting for application startup.
+2026-02-07 21:33:01,314 - INFO - Starting FastAPI application...
+2026-02-07 21:33:01,317 - INFO - ================================================================================
+2026-02-07 21:33:01,317 - INFO - INICIALIZANDO REAL-TIME MONITOR
+2026-02-07 21:33:01,317 - INFO - ================================================================================
+2026-02-07 21:33:01,317 - INFO - EventBus2026-02-07 21:3INFO:     Application startup complete.
+ERROR:    [Errno 10048] error while attempting to bind on address ('0.0.02026-02-07 21:33:01,321 - INFO - Signal logging configurado:
+2026-02-07 21:33:01,321 - INFO -   JSON Log: logs\live_signals_20260207.jsonl
+2026-02-07 21:33:01,321 - INFO -   CSV Report: reports\live_signals\signals_20260207.csv
+2026-02-07 21:32026-02-07 21:33:01,321 - INFO -   JSON Log: logs\live_sig2026-02-07 21:33:01,32026-02-07 21:33:01,323 - INFO -   CSV Report: reports\live_signals\signals_20260207.csv
+2026-02-07 21:33:01,323 -2026-02-07 21:33:01,323 - INFO - \u2713 Analisad2026-02-07 21:33:01,325 - INF2026-02-07 21:33:01,325 - INFO - Carregando configuração de: configs/main.yaml
+2026-02-07 21:33:01,334 - INFO - Inicializando MetaTrader 5 Provider...
+2026-02-07 21:33:01,336 - INFO - ============================================================
+2026-02-07 21:33:01,336 - INFO - Inicializando MetaTrader 5...
+2026-02-07 21:33:01,336 - INFO -   Caminho: C:\Program Files\MetaTrader 5\terminal64.exe
+2026-02-07 21:33:01,336 - INFO -   Requer autenticação: False
+2026-02-07 21:33:01,336 - INFO -   Timeout: 5000ms
+2026-02-07 21:33:01,336 - INFO - ============================================================
