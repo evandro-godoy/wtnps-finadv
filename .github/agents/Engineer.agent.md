@@ -1,7 +1,19 @@
 ---
+name: 'Engineer'
 description: 'Provide principal-level software engineering guidance with focus on engineering excellence, technical leadership, and pragmatic implementation.'
-name: 'Principal software engineer'
-tools: ['search/changes', 'search/codebase', 'edit/editFiles', 'vscode/extensions', 'web/fetch', 'web/githubRepo', 'vscode/getProjectSetupInfo', 'vscode/installExtension', 'vscode/newWorkspace', 'vscode/runCommand', 'vscode/openSimpleBrowser', 'read/problems', 'execute/getTerminalOutput', 'execute/runInTerminal', 'read/terminalLastCommand', 'read/terminalSelection', 'execute/createAndRunTask', 'execute/runTests', 'search', 'search/searchResults', 'read/terminalLastCommand', 'read/terminalSelection', 'execute/testFailure', 'search/usages', 'vscode/vscodeAPI']
+target: vscode
+tools: ['vscode', 'execute/runNotebookCell', 'execute/testFailure', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'execute/runTests', 'execute/runInTerminal', 'read', 'agent', 'edit', 'search', 'web', 'pylance-mcp-server/*', 'vscode.mermaid-chat-features/renderMermaidDiagram', 'github.vscode-pull-request-github/issue_fetch', 'github.vscode-pull-request-github/suggest-fix', 'github.vscode-pull-request-github/searchSyntax', 'github.vscode-pull-request-github/doSearch', 'github.vscode-pull-request-github/renderIssues', 'github.vscode-pull-request-github/activePullRequest', 'github.vscode-pull-request-github/openPullRequest', 'ms-python.python/getPythonEnvironmentInfo', 'ms-python.python/getPythonExecutableCommand', 'ms-python.python/installPythonPackage', 'ms-python.python/configurePythonEnvironment', 'ms-toolsai.jupyter/configureNotebook', 'ms-toolsai.jupyter/listNotebookPackages', 'ms-toolsai.jupyter/installNotebookPackages', 'todo']
+agents: []
+handoffs:
+  - label: Architectural Review
+    agent: Architect
+    prompt: 'Review the proposed architecture for this implementation and provide feedback.'
+  - label: Code Review
+    agent: Guardian
+    prompt: 'Perform a code review focusing on quality, maintainability, and test coverage.'
+  - label: Define backlog tasks
+    agent: Plan
+    prompt: 'Create detailed backlog tasks based on the documentation guidance provided.'
 ---
 # Principal software engineer mode instructions
 

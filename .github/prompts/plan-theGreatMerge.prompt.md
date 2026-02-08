@@ -51,7 +51,7 @@
   4. Integrar Split.js via CDN no [templates/charts_clean.html](templates/charts_clean.html) — painel de chart redimensionável
   5. Atualizar [src/api/main.py](src/api/main.py) para montar `static/` na raiz se o diretório existir
   6. Manter GUI Tkinter [src/gui/monitor_ui.py](src/gui/monitor_ui.py) inalterado (não alterar lógica de backend)
-- **Arquivos:** `templates/charts_clean.html`, `templates/static/css/charts_clean.css`, `templates/static/js/virtual-scroll.js` (novo), `src/api/main.py`
+- **Arquivos:** [templates/charts_clean.html](templates/charts_clean.html), [templates/static/css/charts_clean.css](templates/static/css/charts_clean.css), [templates/static/js/virtual-scroll.js](templates/static/js/virtual-scroll.js) (novo), [src/api/main.py](src/api/main.py)
 - **DoD:** `http://localhost:8000/` mostra chart com split panes e tabela de sinais com virtual scroll
 
 #### Issue 3: [STRATEGY] Consolidar LSTM + Adapter
@@ -62,10 +62,10 @@
   1. Validar que `LSTMVolatilityAdapter.on_market_data()` gera features idênticas ao `LSTMVolatilityStrategy.define_features()` — atenção ao column naming (`Open` vs `open`) que mudará com Issue 1
   2. No adapter, adaptar input columns para Capitalized (`Open`, `High`, `Low`, `Close`, `Volume`) conforme `mt5_provider.py`
   3. Verificar lookback: adapter usa 108, strategy usa 96 — reconciliar (adapter auto-ajusta via `model.input_shape`, mas confirmar)
-  4. Criar `tests/unit/test_lstm_adapter.py` com teste de shape consistency: dados sintéticos → `on_market_data()` → `SignalEvent` publicado
+  4. Criar [tests/unit/test_lstm_adapter.py](tests/unit/test_lstm_adapter.py) com teste de shape consistency: dados sintéticos → `on_market_data()` → `SignalEvent` publicado
   5. Verificar `.keras` models em [models/](models/) — confirmar que são carregáveis pelo adapter (artifact naming: `{TICKER}_LSTMVolatilityStrategy_M5_prod_lstm.keras`)
   6. NÃO criar `hybrid_data_loader.py` — não existe base para isso; remover referências dos docs
-- **Arquivos:** [src/modules/strategy/lstm_adapter.py](src/modules/strategy/lstm_adapter.py), `tests/unit/test_lstm_adapter.py` (novo)
+- **Arquivos:** [src/modules/strategy/lstm_adapter.py](src/modules/strategy/lstm_adapter.py), [tests/unit/test_lstm_adapter.py](tests/unit/test_lstm_adapter.py) (novo)
 - **DoD:** `pytest tests/unit/test_lstm_adapter.py -v` passa 100%, adapter carrega modelo `.keras` existente
 
 #### Issue 4: [OPS] Atualizar Ambiente (Poetry)
@@ -73,7 +73,7 @@
 
 - **Problema:** Dependências inconsistentes: `yfinance` importado em [src/data_handler/provider.py](src/data_handler/provider.py) mas não está no `pyproject.toml`. `tkcalendar` mencionado mas ausente. `psutil` usado por [scripts/dry_run.py](scripts/dry_run.py) mas não declarado.
 - **Ações:**
-  1. Adicionar ao `pyproject.toml`: `yfinance`, `tkcalendar`, `psutil`
+  1. Adicionar ao [pyproject.toml](pyproject.toml): `yfinance`, `tkcalendar`, `psutil`
   2. Verificar se `talib` é necessário (pesquisa mostra que NÃO, confirm)
   3. Verificar se `flask` é necessário (pesquisa mostra que NÃO — projeto usa FastAPI)
   4. Rodar `poetry lock` e `poetry install`
@@ -93,8 +93,8 @@
   4. Rodar `poetry run python -c "from src.live.monitor_engine import RealTimeMonitor"`
   5. Rodar `poetry run python -c "from src.api.main import app"`
   6. Validar que [src/api/main.py](src/api/main.py) → `RealTimeMonitor` → `mt5_provider.MetaTraderProvider` chain funciona (sem MT5: mock)
-  7. Limpar dead code: `src/gui/monitor_ui_backup.py` (backup desnecessário), verificar se `provider.py` ainda é necessário (manter para YFinanceProvider, marcar MetaTraderProvider como deprecated)
-- **Arquivos:** Todos os que foram modificados nas Issues 1-4 + `tests/`
+  7. Limpar dead code: [src/gui/monitor_ui_backup.py](src/gui/monitor_ui_backup.py) (backup desnecessário), verificar se `provider.py` ainda é necessário (manter para YFinanceProvider, marcar MetaTraderProvider como deprecated)
+- **Arquivos:** Todos os que foram modificados nas Issues 1-4 + [tests/](tests/)
 - **DoD:** `pytest` 100% pass (com mocks para MT5), `flake8 src/` sem erros críticos, sistema inicia sem crashes de import
 
 ---
