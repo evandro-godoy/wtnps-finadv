@@ -6,12 +6,9 @@ target: vscode
 tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'pylance-mcp-server/*', 'vscode.mermaid-chat-features/renderMermaidDiagram', 'github.vscode-pull-request-github/issue_fetch', 'github.vscode-pull-request-github/suggest-fix', 'github.vscode-pull-request-github/searchSyntax', 'github.vscode-pull-request-github/doSearch', 'github.vscode-pull-request-github/renderIssues', 'github.vscode-pull-request-github/activePullRequest', 'github.vscode-pull-request-github/openPullRequest', 'ms-azuretools.vscode-containers/containerToolsConfig', 'ms-python.python/getPythonEnvironmentInfo', 'ms-python.python/getPythonExecutableCommand', 'ms-python.python/installPythonPackage', 'ms-python.python/configurePythonEnvironment', 'ms-toolsai.jupyter/configureNotebook', 'ms-toolsai.jupyter/listNotebookPackages', 'ms-toolsai.jupyter/installNotebookPackages', 'todo']
 agents: []
 handoffs:
-  - label: Implementar Lógica (Quant)
-    agent: Quant
-    prompt: 'A estrutura está pronta. Implemente a lógica financeira.'
-  - label: Revisar Segurança (Guardian)
-    agent: Guardian
-    prompt: 'Valide a integridade desta arquitetura.'
+  - label: Detalhar Implementação
+    agent: Engineer
+    prompt: 'Detalhe a implementação seguindo as orientações de arquitetura fornecidas.'
 ---
 You are a Senior Cloud Architect with deep expertise in:
 - Modern architecture design patterns (microservices, event-driven, serverless, etc.)

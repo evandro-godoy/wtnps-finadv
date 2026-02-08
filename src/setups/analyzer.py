@@ -80,8 +80,10 @@ class SetupAnalyzer:
                     ma_col = f"{ma_type}_{period}" # ex: "sma_20"
                     
                     if ma_col in candle:
-                        rule_valid = candle['close'] > candle[ma_col]
-                        setup_details[f"{ma_col}_above"] = f"Close ({candle['close']:.2f}) > MA ({candle[ma_col]:.2f}) -> {rule_valid}"
+                        rule_valid = candle['Close'] > candle[ma_col]
+                        setup_details[f"{ma_col}_above"] = (
+                            f"Close ({candle['Close']:.2f}) > MA ({candle[ma_col]:.2f}) -> {rule_valid}"
+                        )
                     else:
                         setup_details[f"{ma_col}_above"] = f"Erro: Coluna {ma_col} não encontrada."
                         logger.warning(f"SetupAnalyzer: Coluna de MA '{ma_col}' não encontrada nos dados.")
@@ -92,8 +94,10 @@ class SetupAnalyzer:
                     ma_col = f"{ma_type}_{period}" # ex: "sma_20"
                     
                     if ma_col in candle:
-                        rule_valid = candle['close'] < candle[ma_col]
-                        setup_details[f"{ma_col}_below"] = f"Close ({candle['close']:.2f}) < MA ({candle[ma_col]:.2f}) -> {rule_valid}"
+                        rule_valid = candle['Close'] < candle[ma_col]
+                        setup_details[f"{ma_col}_below"] = (
+                            f"Close ({candle['Close']:.2f}) < MA ({candle[ma_col]:.2f}) -> {rule_valid}"
+                        )
                     else:
                         setup_details[f"{ma_col}_below"] = f"Erro: Coluna {ma_col} não encontrada."
                         logger.warning(f"SetupAnalyzer: Coluna de MA '{ma_col}' não encontrada nos dados.")

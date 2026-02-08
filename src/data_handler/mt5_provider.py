@@ -9,6 +9,7 @@ import pandas as pd
 
 from src.core.config import settings
 from src.core.event_bus import event_bus
+from src.data_handler.ohlcv_schema import standardize_ohlcv_schema
 from src.events import MarketDataEvent
 
 logger = logging.getLogger(__name__)
@@ -214,6 +215,11 @@ class MetaTraderProvider:
             'Close': df['close'].astype(float),
             'Volume': df['tick_volume'].astype(int),
         })
+
+        df_output = standardize_ohlcv_schema(
+            df_output,
+            source="MetaTraderProvider.get_latest_candles",
+        )
         
         logger.debug(f"✅ Buscados {len(df_output)} candles: {symbol} {timeframe}")
         return df_output

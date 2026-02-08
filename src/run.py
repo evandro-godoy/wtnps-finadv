@@ -189,7 +189,9 @@ def main():
     
     # Preparar dados de treino
     featured_data_is = strategy_instance.define_features(market_data_is)
-    featured_data_is['target'] = (featured_data_is['close'].shift(-1) > featured_data_is['close']).astype(int)
+    featured_data_is['target'] = (
+        (featured_data_is['Close'].shift(-1) > featured_data_is['Close']).astype(int)
+    )
     featured_data_is = featured_data_is.dropna()
 
     X_is = featured_data_is[strategy_instance.get_feature_names()]
@@ -205,7 +207,9 @@ def main():
 
     # Preparar dados de simulação
     featured_data_oos = strategy_instance.define_features(market_data_oos)
-    featured_data_oos['target'] = (featured_data_oos['close'].shift(-1) > featured_data_oos['close']).astype(int)
+    featured_data_oos['target'] = (
+        (featured_data_oos['Close'].shift(-1) > featured_data_oos['Close']).astype(int)
+    )
     featured_data_oos = featured_data_oos.dropna()
     
     X_oos = featured_data_oos[strategy_instance.get_feature_names()]
@@ -240,7 +244,7 @@ def main():
         if not strategy_returns.empty:
             reporting_cfg = config['reporting_settings']
             # Adiciona a coluna de retornos de mercado para o gráfico de benchmark
-            results_signals['returns'] = market_data_oos['close'].pct_change()
+            results_signals['returns'] = market_data_oos['Close'].pct_change()
             results_report = results_signals.join(strategy_returns, how='left').fillna(0)
             
             logging.info("Gerando relatório de performance OOS...")

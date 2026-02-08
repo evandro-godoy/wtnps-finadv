@@ -143,19 +143,23 @@ class RandomForestStrategy(BaseStrategy):
         self.n_estimators = n_estimators
         self.random_state = random_state
         # Define os nomes das features aqui para consistência
-        self.feature_names = ['sma_9', 'sma_20', 'rsi', 'volatility', 'volume'] 
+        self.feature_names = ['sma_9', 'sma_20', 'rsi', 'volatility', 'Volume']
 
     def define_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """Adiciona features técnicas simples."""
+        self._validate_ohlcv_schema(
+            data,
+            source="RandomForestStrategy.define_features",
+        )
         df = data.copy()
         
         # Médias Móveis Simples
-        df['sma_9'] = df['close'].rolling(window=9).mean()
-        df['sma_20'] = df['close'].rolling(window=20).mean()
+        df['sma_9'] = df['Close'].rolling(window=9).mean()
+        df['sma_20'] = df['Close'].rolling(window=20).mean()
 
         # RSI
         rsi_period = 14
-        delta = df['close'].diff()
+        delta = df['Close'].diff()
         gain = delta.where(delta > 0, 0).rolling(window=rsi_period).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=rsi_period).mean()
         rs = gain / loss.replace(0, 1e-6) # Evita divisão por zero
@@ -165,13 +169,15 @@ class RandomForestStrategy(BaseStrategy):
         # Volatilidade (desvio padrão dos retornos)
         volatility_window = min(21, len(df) - 1) if len(df) > 1 else 1
         if volatility_window > 0:
-            df['volatility'] = df['close'].pct_change().rolling(window=volatility_window).std()
+            df['volatility'] = df['Close'].pct_change().rolling(
+                window=volatility_window,
+            ).std()
         else:
             df['volatility'] = 0.0
 
         # Volume (assume que já existe)
-        if 'volume' not in df.columns:
-            df['volume'] = 0
+        if 'Volume' not in df.columns:
+            df['Volume'] = 0
 
         # Preenche NaNs restantes (início das rolling windows)
         df.ffill(inplace=True)

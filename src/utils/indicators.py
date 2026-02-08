@@ -49,7 +49,7 @@ def calculate_ema(series: pd.Series, span: int) -> pd.Series:
     return series.ewm(span=span, adjust=False).mean()
 
 
-def add_demo_indicators(df: pd.DataFrame, close_col: str = "close") -> pd.DataFrame:
+def add_demo_indicators(df: pd.DataFrame, close_col: str = "Close") -> pd.DataFrame:
     """
     Adiciona os indicadores da demo (SMA21, SMA200, EMA9) ao DataFrame.
 

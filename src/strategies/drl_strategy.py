@@ -51,33 +51,37 @@ class DRLStrategy(BaseStrategy):
         """
         import pandas_ta as ta
         
+        self._validate_ohlcv_schema(
+            data,
+            source="DRLStrategy.define_features",
+        )
         df = data.copy()
         
         # --- Novas Features usando pandas_ta ---
         
         # 1. EMA 9
-        df['ema_9'] = ta.ema(df['close'], length=9)
+        df['ema_9'] = ta.ema(df['Close'], length=9)
         
         # 2. SMA 20
-        df['sma_20'] = ta.sma(df['close'], length=20)
+        df['sma_20'] = ta.sma(df['Close'], length=20)
         
         # 3. SMA 200
-        df['sma_200'] = ta.sma(df['close'], length=200)
+        df['sma_200'] = ta.sma(df['Close'], length=200)
         
         # 4. Distância (normalizada) para a SMA 20
-        df['dist_sma_20'] = (df['close'] - df['sma_20']) / df['close']
+        df['dist_sma_20'] = (df['Close'] - df['sma_20']) / df['Close']
         
         # 5. Distância (normalizada) para a SMA 200
-        df['dist_sma_200'] = (df['close'] - df['sma_200']) / df['close']
+        df['dist_sma_200'] = (df['Close'] - df['sma_200']) / df['Close']
         
         # 6. ATR (Volatilidade Normalizada)
-        atr = ta.atr(df['high'], df['low'], df['close'], length=14)
-        df['atr'] = atr / df['close']  # Normaliza o ATR pelo preço
+        atr = ta.atr(df['High'], df['Low'], df['Close'], length=14)
+        df['atr'] = atr / df['Close']  # Normaliza o ATR pelo preço
         
         # Normaliza as features baseadas em preço (exceto distâncias e ATR que já são relativos)
         price_features = ['ema_9', 'sma_20', 'sma_200']
         for col in price_features:
-            df[col] = (df[col] / df['close']) - 1  # Normaliza pelo preço de fechamento
+            df[col] = (df[col] / df['Close']) - 1  # Normaliza pelo preço de fechamento
         
         return df
     

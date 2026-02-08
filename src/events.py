@@ -38,6 +38,40 @@ class MarketDataEvent(BaseEvent):
 
 
 @dataclass
+class MarketDataCandleEvent(BaseEvent):
+    """Evento canonico de candle (OHLCV) para o EventBus."""
+
+    ticker: str
+    timeframe: str
+    Open: float
+    High: float
+    Low: float
+    Close: float
+    Volume: int
+
+    def __init__(
+        self,
+        ticker: str,
+        timeframe: str,
+        Open: float,
+        High: float,
+        Low: float,
+        Close: float,
+        Volume: int,
+        timestamp: Optional[datetime] = None,
+    ) -> None:
+        self.ticker = ticker
+        self.timeframe = timeframe
+        self.Open = Open
+        self.High = High
+        self.Low = Low
+        self.Close = Close
+        self.Volume = Volume
+        self.timestamp = timestamp or datetime.now()
+        self.event_type = "MARKET_DATA_CANDLE"
+
+
+@dataclass
 class SignalEvent(BaseEvent):
     """Evento de sinal de trading."""
     symbol: str

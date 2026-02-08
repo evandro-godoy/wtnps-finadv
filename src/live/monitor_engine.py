@@ -14,8 +14,8 @@ from src.data_handler.mt5_provider import MetaTraderProvider
 from src.core.config import settings
 from src.strategies.lstm_volatility import LSTMVolatilityStrategy
 from src.analysis.context_analyzer import MarketContextAnalyzer
-from src.events import InferenceSignalEvent
-from src.core.event_bus import EventBus
+from src.events import InferenceSignalEvent, MarketDataCandleEvent
+from src.core.event_bus import event_bus
 
 # Configuração do logging
 logging.basicConfig(
@@ -53,8 +53,7 @@ class RealTimeMonitor:
         threshold_log: float = 0.55,
         buffer_size: int = 500,
         config_path: str = "configs/main.yaml",
-        ui_callback: Optional[callable] = None
-    ):
+    ) -> None:
         """
         Inicializa o monitor em tempo real.
         
@@ -65,7 +64,6 @@ class RealTimeMonitor:
             threshold_log: Probabilidade para gerar log (default: 0.55)
             buffer_size: Quantidade de velas no buffer histórico
             config_path: Caminho para o arquivo de configuração
-            ui_callback: Função de callback para atualização de UI (opcional)
         """
         logger.info("=" * 80)
         logger.info("INICIALIZANDO REAL-TIME MONITOR")
@@ -77,12 +75,11 @@ class RealTimeMonitor:
         self.threshold_log = threshold_log
         self.buffer_size = buffer_size
         self.buffer_df: Optional[pd.DataFrame] = None
-        self.ui_callback = ui_callback
         self.running = False
         
-        # Inicializa EventBus
-        self.event_bus = EventBus()
-        logger.info("EventBus inicializado")
+        # Inicializa EventBus (singleton)
+        self.event_bus = event_bus
+        logger.info("EventBus singleton inicializado")
         
         # Setup de logging estruturado e CSV
         self._setup_signal_logging()
@@ -291,6 +288,21 @@ Configurações do Monitor:
         4. Verifica thresholds e gera logs/alertas conforme probabilidade
         """
         try:
+            # Publica candle mais recente antes de qualquer inferencia
+            last_candle = self.buffer_df.iloc[-1]
+            current_time = self.buffer_df.index[-1]
+            candle_event = MarketDataCandleEvent(
+                ticker=self.ticker,
+                timeframe=self.timeframe_str,
+                Open=float(last_candle['Open']),
+                High=float(last_candle['High']),
+                Low=float(last_candle['Low']),
+                Close=float(last_candle['Close']),
+                Volume=int(last_candle['Volume']),
+                timestamp=current_time,
+            )
+            self.event_bus.publish(candle_event)
+
             # 1. Calcula features
             features_df = self.strategy.define_features(self.buffer_df.copy())
             
@@ -301,7 +313,7 @@ Configurações do Monitor:
             
             # 2. Calcula EMA(20) para filtro de tendência
             if 'ema_20' not in features_df.columns:
-                features_df['ema_20'] = features_df['close'].ewm(span=20, adjust=False).mean()
+                features_df['ema_20'] = features_df['Close'].ewm(span=20, adjust=False).mean()
             
             # 3. Prepara dados para predição (últimas lookback + margem linhas)
             lookback = self.strategy.lookback
@@ -327,8 +339,6 @@ Configurações do Monitor:
             prob_class1 = proba[-1, 1]  # Probabilidade da classe 1 (explosão de volatilidade)
             
             # 5. Obtém dados do último candle
-            last_candle = self.buffer_df.iloc[-1]
-            current_time = self.buffer_df.index[-1]
             current_price = last_candle['Close']
             ema_20 = features_df['ema_20'].iloc[-1]
             
@@ -365,8 +375,12 @@ Configurações do Monitor:
                     'ema_9': float(features_df['ema_9'].iloc[-1]) if 'ema_9' in features_df.columns else 0.0,
                     'ema_20': float(ema_20),
                     'rsi': float(context.get('rsi', 0)),
+                    'rsi_condition': context.get('rsi_condition', ''),
                     'trend': context.get('trend', ''),
                     'trend_strength': context.get('trend_strength', ''),
+                    'ema_fast': float(context.get('ema_fast', 0.0)),
+                    'sma_fast': float(context.get('sma_fast', 0.0)),
+                    'sma_slow': float(context.get('sma_slow', 0.0)),
                     'pattern': context.get('pattern', ''),
                     'support': float(context.get('support', 0)),
                     'resistance': float(context.get('resistance', 0)),
@@ -382,59 +396,6 @@ Configurações do Monitor:
             
             # Salva em arquivos (JSON Lines + CSV)
             self._log_signal_to_files(inference_event)
-            
-            # Prepara dados para callback de UI (sempre envia dados do último candle)
-            if self.ui_callback:
-                # Dados completos do último candle para UI (inclui contexto técnico)
-                candle_data = {
-                    'timestamp': current_time,
-                    'open': last_candle['Open'],
-                    'high': last_candle['High'],
-                    'low': last_candle['Low'],
-                    'close': current_price,
-                    'volume': last_candle['Volume'],
-                    'probability': prob_pct,
-                    'direction': direction,
-                    'ema_20': ema_20,
-                    'sma_fast': context.get('sma_fast'),
-                    # Contexto técnico
-                    'trend': context['trend'],
-                    'trend_strength': context['trend_strength'],
-                    'rsi': context['rsi'],
-                    'rsi_condition': context['rsi_condition'],
-                    'support': context['support'],
-                    'resistance': context['resistance'],
-                    'pattern': context['pattern'],
-                    'signal_valid': signal_valid,
-                    'validation_reason': validation_reason,
-                }
-                
-                if prob_class1 > self.threshold_alert:
-                    # ALERTA CRÍTICO - Mensagem enriquecida
-                    candle_data['type'] = 'ALERT'
-                    target = context['resistance'] if direction == 'CALL' else context['support']
-                    validation_icon = "✅" if signal_valid else "⚠️"
-                    candle_data['message'] = (
-                        f"{validation_icon} SINAL {direction} ({prob_pct:.1f}%) | "
-                        f"Tendência: {context['trend']} ({context['trend_strength']}) | "
-                        f"Padrão: {context['pattern']} | "
-                        f"Alvo: {target:.2f}"
-                    )
-                    self.ui_callback(candle_data)
-                elif prob_class1 > self.threshold_log:
-                    # LOG INFORMATIVO
-                    candle_data['type'] = 'INFO'
-                    candle_data['message'] = (
-                        f"📊 Prob. Moderada ({prob_pct:.1f}%) | "
-                        f"Tendência: {context['trend']} | "
-                        f"RSI: {context['rsi']:.0f} ({context['rsi_condition']})"
-                    )
-                    self.ui_callback(candle_data)
-                else:
-                    # TICK normal (sem alerta)
-                    candle_data['type'] = 'TICK'
-                    candle_data['message'] = f"Candle processado | Tendência: {context['trend']}"
-                    self.ui_callback(candle_data)
             
             # Logs no console (enriquecidos com contexto)
             if prob_class1 > self.threshold_alert:

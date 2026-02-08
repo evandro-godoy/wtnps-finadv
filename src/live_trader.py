@@ -316,7 +316,7 @@ class LiveTrader:
             if setup_rules:
                  try: setup_result = self.setup_analyzer.evaluate_setups(current_candle, setup_rules, ai_signal)
                  except Exception as e: logger.error(f"Erro setups {asset_symbol}: {e}", exc_info=True); setup_result = {"is_valid": False, "details": {"erro": str(e)}, "final_decision": "HOLD"}
-            final_signal = setup_result["final_decision"]; current_price = current_candle['close'].iloc[0]
+            final_signal = setup_result["final_decision"]; current_price = current_candle['Close'].iloc[0]
             # logger.info(f"{asset_symbol}: IA={ai_signal}, SetupOK={setup_result['is_valid']}, Final={final_signal}") # Log mais conciso
 
             if self.callback:

@@ -25,6 +25,35 @@ Restaurar o fluxo event-driven como via exclusiva de comunicacao entre modulos, 
 5. Atualizar API e GUI para consumir apenas eventos (sem leitura direta de buffer).
 6. Documentar contrato de eventos (tipos e campos) no proprio issue.
 
+## 📜 Contrato de Eventos (Canonico)
+
+### MARKET_DATA_CANDLE
+
+| Campo | Tipo | Obrigatorio | Observacoes |
+| --- | --- | --- | --- |
+| event_type | string | sim | Valor fixo: `MARKET_DATA_CANDLE`. |
+| timestamp | datetime | sim | ISO-8601 em UTC. |
+| ticker | string | sim | Ex: `WDO$`. |
+| timeframe | string | sim | Ex: `M5`, `H1`. |
+| Open | float | sim | Schema canonico OHLCV. |
+| High | float | sim | Schema canonico OHLCV. |
+| Low | float | sim | Schema canonico OHLCV. |
+| Close | float | sim | Schema canonico OHLCV. |
+| Volume | int | sim | Schema canonico OHLCV. |
+
+### INFERENCE_SIGNAL
+
+| Campo | Tipo | Obrigatorio | Observacoes |
+| --- | --- | --- | --- |
+| event_type | string | sim | Valor fixo: `INFERENCE_SIGNAL`. |
+| timestamp | datetime | sim | ISO-8601 em UTC. |
+| ticker | string | sim | Ex: `WDO$`. |
+| timeframe | string | sim | Ex: `M5`, `H1`. |
+| ai_signal | string | sim | `COMPRA`, `VENDA`, `HOLD`. |
+| probability | float | sim | 0.0 a 1.0. |
+| price | float | sim | Preco do ultimo candle. |
+| indicators | object | sim | Ex: `atr`, `ema_9`, `ema_20`, `rsi`, `trend`, `pattern`, `support`, `resistance`, `signal_valid`, `validation_reason`. |
+
 ## 🔗 Dependências & Bloqueios
 - [ ] Mapear pontos que leem `buffer_df` diretamente
 - [ ] Definir evento padrao para dados de candle (se necessario)

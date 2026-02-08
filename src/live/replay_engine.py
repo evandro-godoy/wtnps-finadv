@@ -18,6 +18,8 @@ import pandas as pd
 
 from src.simulation.engine import SimulationEngine
 from src.data_handler.provider import MetaTraderProvider
+from src.core.event_bus import event_bus
+from src.events import InferenceSignalEvent, MarketDataCandleEvent
 
 # Configuração do logging
 logging.basicConfig(
@@ -60,9 +62,8 @@ class ReplayEngine:
         buffer_size: int = 500,
         speed_multiplier: float = 1.0,
         config_path: str = "configs/main.yaml",
-        ui_callback: Optional[Callable] = None,
         progress_callback: Optional[Callable] = None
-    ):
+    ) -> None:
         """
         Inicializa o motor de replay.
         
@@ -75,7 +76,6 @@ class ReplayEngine:
             buffer_size: Tamanho do buffer para SimulationEngine
             speed_multiplier: Velocidade de replay (0.5 a 10.0)
             config_path: Caminho para arquivo de configuração
-            ui_callback: Função de callback para UI
             progress_callback: Função de callback para progresso
         """
         logger.info("=" * 80)
@@ -90,7 +90,6 @@ class ReplayEngine:
         self.buffer_size = buffer_size
         self.speed_multiplier = max(0.1, min(10.0, speed_multiplier))
         self.config_path = config_path
-        self.ui_callback = ui_callback
         self.progress_callback = progress_callback
         
         # Estado do replay
@@ -99,6 +98,8 @@ class ReplayEngine:
         self.current_time = None
         self.end_time = None
         self.replay_thread = None
+
+        self.event_bus = event_bus
         
         # Mapeamento de timeframe para timedelta
         self.timeframe_deltas = {
@@ -281,9 +282,8 @@ Configurações do Replay:
             # Converte resultado para formato de candle_data
             candle_data = self._convert_result_to_candle_data(result)
             
-            # Callback para UI
-            if self.ui_callback and candle_data:
-                self.ui_callback(candle_data)
+            if candle_data:
+                self._publish_events(result, candle_data)
             
             # Avança para próximo candle
             self.current_time += self.candle_interval
@@ -347,17 +347,18 @@ Configurações do Replay:
             # Busca dados OHLC do candle atual do historical_data
             if self.current_time in self.historical_data.index:
                 candle = self.historical_data.loc[self.current_time]
-                open_price = candle.get('open', price)
-                high_price = candle.get('high', price)
-                low_price = candle.get('low', price)
-                close_price = candle.get('close', price)
-                volume = candle.get('volume', 0)
+                open_price = candle.get('Open', price)
+                high_price = candle.get('High', price)
+                low_price = candle.get('Low', price)
+                close_price = candle.get('Close', price)
+                volume = candle.get('Volume', 0)
             else:
                 open_price = high_price = low_price = close_price = price
                 volume = 0
             
             # Monta candle_data no formato esperado
             candle_data = {
+                'ai_signal': ai_signal,
                 'timestamp': self.current_time,
                 'open': float(open_price),
                 'high': float(high_price),
@@ -387,6 +388,42 @@ Configurações do Replay:
         except Exception as e:
             logger.error(f"Erro ao converter resultado: {e}", exc_info=True)
             return None
+
+    def _publish_events(self, result: Dict, candle_data: Dict) -> None:
+        """
+        Publica eventos canonicos para o EventBus a partir do replay.
+
+        Args:
+            result: Resultado bruto do SimulationEngine
+            candle_data: Dados de candle já normalizados
+        """
+        timestamp = candle_data.get('timestamp', datetime.now())
+        candle_event = MarketDataCandleEvent(
+            ticker=self.ticker,
+            timeframe=self.timeframe_str,
+            Open=float(candle_data.get('open', 0.0)),
+            High=float(candle_data.get('high', 0.0)),
+            Low=float(candle_data.get('low', 0.0)),
+            Close=float(candle_data.get('close', 0.0)),
+            Volume=int(candle_data.get('volume', 0)),
+            timestamp=timestamp,
+        )
+        self.event_bus.publish(candle_event)
+
+        indicators = dict(result.get('indicators', {}) if result else {})
+        if result:
+            indicators.setdefault('signal_valid', result.get('setup_valid', False))
+            indicators.setdefault('validation_reason', result.get('validation_reason', ''))
+        inference_event = InferenceSignalEvent(
+            ticker=self.ticker,
+            ai_signal=candle_data.get('ai_signal', 'HOLD'),
+            probability=float(candle_data.get('probability', 0.0)) / 100.0,
+            price=float(candle_data.get('close', 0.0)),
+            indicators=indicators,
+            timeframe=self.timeframe_str,
+            timestamp=timestamp,
+        )
+        self.event_bus.publish(inference_event)
     
     def pause(self):
         """Pausa o replay."""

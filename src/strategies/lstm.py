@@ -283,34 +283,38 @@ class LSTMStrategy(BaseStrategy):
         # Nomes das features que serão usadas (importante!)
         self.feature_names = [
             'ema_9', 'sma_20', 'sma_200', 'dist_sma_20', 'dist_sma_200',
-            'volume', 'volatility'
+            'Volume', 'volatility'
         ]
 
     def define_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """
         Adiciona os indicadores técnicos que servirão de features para o modelo.
         """
+        self._validate_ohlcv_schema(
+            data,
+            source="LSTMStrategy.define_features",
+        )
         df = data.copy()
         
         # Médias Móveis
-        df['ema_9'] = df['close'].ewm(span=9, adjust=False).mean()
-        df['sma_20'] = df['close'].rolling(window=20).mean()
+        df['ema_9'] = df['Close'].ewm(span=9, adjust=False).mean()
+        df['sma_20'] = df['Close'].rolling(window=20).mean()
         # df['sma_50'] = df['close'].rolling(window=50).mean()
-        df['sma_200'] = df['close'].rolling(window=200).mean()
+        df['sma_200'] = df['Close'].rolling(window=200).mean()
 
-        df['dist_sma_20'] = (df['close'] - df['sma_20']) / df['close']
-        df['dist_sma_200'] = (df['close'] - df['sma_200']) / df['close']
+        df['dist_sma_20'] = (df['Close'] - df['sma_20']) / df['Close']
+        df['dist_sma_200'] = (df['Close'] - df['sma_200']) / df['Close']
         
         df['dist_sma_20'] = df['dist_sma_20'].fillna(0)  # Preenche NaNs iniciais
         df['dist_sma_200'] = df['dist_sma_200'].fillna(0)  # Preenche NaNs iniciais
 
         # Volume (assume que 'volume' já existe nos dados do provider)
-        if 'volume' not in df.columns:
-            logging.warning("Coluna 'volume' não encontrada nos dados. Será preenchida com 0.")
-            df['volume'] = 0
+        if 'Volume' not in df.columns:
+            logging.warning("Coluna 'Volume' não encontrada nos dados. Será preenchida com 0.")
+            df['Volume'] = 0
 
         # Volatilidade (desvio padrão dos retornos)
-        df['returns'] = df['close'].pct_change()
+        df['returns'] = df['Close'].pct_change()
         # Ajusta a janela de volatilidade se necessário
         volatility_window = min(21, len(df) - 1) if len(df) > 1 else 1
         # df['volatility'] = df['returns'].rolling(window=21).std() * np.sqrt(252) # Volatilidade anualizada

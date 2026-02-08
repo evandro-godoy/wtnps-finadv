@@ -17,22 +17,26 @@ class SentimentRandomForestFeatureStrategy(BaseStrategy):
         self.feature_names = ['ma_diff', 'rsi', 'returns', 'sentiment']
 
     def define_features(self, data: pd.DataFrame) -> pd.DataFrame:
+        self._validate_ohlcv_schema(
+            data,
+            source="SentimentRandomForestFeatureStrategy.define_features",
+        )
         df = data.copy()
         
         # 1. Médias Móveis
-        df['ma_short'] = df['close'].rolling(window=self.short_window).mean()
-        df['ma_long'] = df['close'].rolling(window=self.long_window).mean()
+        df['ma_short'] = df['Close'].rolling(window=self.short_window).mean()
+        df['ma_long'] = df['Close'].rolling(window=self.long_window).mean()
         df['ma_diff'] = df['ma_short'] - df['ma_long']
 
         # 2. Índice de Força Relativa (RSI)
-        delta = df['close'].diff()
+        delta = df['Close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=self.rsi_window).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=self.rsi_window).mean()
         rs = gain / loss
         df['rsi'] = 100 - (100 / (1 + rs))
 
         # 3. Retornos Diários
-        df['returns'] = df['close'].pct_change()
+        df['returns'] = df['Close'].pct_change()
         
         if 'sentiment' not in df.columns:
             raise ValueError("A coluna 'sentiment' não foi encontrada. Verifique o data_provider.")

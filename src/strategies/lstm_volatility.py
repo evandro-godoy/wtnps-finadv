@@ -25,9 +25,9 @@ def calculate_true_range(df: pd.DataFrame) -> pd.Series:
     TR = max(high-low, high-prev_close, low-prev_close)
     """
     df_temp = df.copy()
-    df_temp['high-low'] = df_temp['high'] - df_temp['low']
-    df_temp['high-prev_close'] = np.abs(df_temp['high'] - df_temp['close'].shift(1))
-    df_temp['low-prev_close'] = np.abs(df_temp['low'] - df_temp['close'].shift(1))
+    df_temp['high-low'] = df_temp['High'] - df_temp['Low']
+    df_temp['high-prev_close'] = np.abs(df_temp['High'] - df_temp['Close'].shift(1))
+    df_temp['low-prev_close'] = np.abs(df_temp['Low'] - df_temp['Close'].shift(1))
     true_range = df_temp[['high-low', 'high-prev_close', 'low-prev_close']].max(axis=1)
     return true_range
 
@@ -298,7 +298,7 @@ class LSTMVolatilityStrategy(BaseStrategy):
             # Tempo
             'hour_sin', 'hour_cos', 'day_sin', 'day_cos',
             # Volume
-            'volume'
+            'Volume'
         ]
 
     def define_features(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -309,41 +309,48 @@ class LSTMVolatilityStrategy(BaseStrategy):
         - Morfologia de candles
         - Time embeddings
         """
-        df = self._normalize_ohlc_columns(data.copy())
+        self._validate_ohlcv_schema(
+            data,
+            source="LSTMVolatilityStrategy.define_features",
+        )
+        df = data.copy()
         
         # --- 1. DINÂMICA DE PREÇO ---
         
         # Retorno simples (% variação do fechamento)
-        df['retorno'] = df['close'].pct_change()
+        df['retorno'] = df['Close'].pct_change()
         
         # Gap de abertura
-        df['gap'] = (df['open'] - df['close'].shift(1)) / df['close'].shift(1)
+        df['gap'] = (df['Open'] - df['Close'].shift(1)) / df['Close'].shift(1)
         
         # Rate of Change (ROC) - Momentum
         for window in [3, 8]:
-            df[f'roc_{window}'] = (df['close'] - df['close'].shift(window)) / df['close'].shift(window)
+            df[f'roc_{window}'] = (
+                (df['Close'] - df['Close'].shift(window))
+                / df['Close'].shift(window)
+            )
         
         # Calcula True Range e ATR
         df['true_range'] = calculate_true_range(df)
         df['atr'] = df['true_range'].rolling(window=14).mean()
         
         # Retorno relativo (normalizado pela volatilidade)
-        df['retorno_relativo'] = df['retorno'] / (df['atr'] / df['close'])
+        df['retorno_relativo'] = df['retorno'] / (df['atr'] / df['Close'])
         
         # --- 2. INDICADORES TÉCNICOS CLÁSSICOS ---
         
         # Médias Móveis
-        df['ema_9'] = df['close'].ewm(span=9, adjust=False).mean()
-        df['sma_20'] = df['close'].rolling(window=20).mean()
-        df['sma_200'] = df['close'].rolling(window=200).mean()
+        df['ema_9'] = df['Close'].ewm(span=9, adjust=False).mean()
+        df['sma_20'] = df['Close'].rolling(window=20).mean()
+        df['sma_200'] = df['Close'].rolling(window=200).mean()
         
         # Distâncias (Normalizadas)
-        df['dist_ema_9'] = (df['close'] - df['ema_9']) / df['close']
-        df['dist_sma_20'] = (df['close'] - df['sma_20']) / df['close']
-        df['dist_sma_200'] = (df['close'] - df['sma_200']) / df['close']
+        df['dist_ema_9'] = (df['Close'] - df['ema_9']) / df['Close']
+        df['dist_sma_20'] = (df['Close'] - df['sma_20']) / df['Close']
+        df['dist_sma_200'] = (df['Close'] - df['sma_200']) / df['Close']
         
         # RSI
-        delta = df['close'].diff()
+        delta = df['Close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
@@ -351,17 +358,17 @@ class LSTMVolatilityStrategy(BaseStrategy):
         df['rsi'] = df['rsi'].fillna(50) / 100.0  # Normalizado para [0, 1]
         
         # Bollinger Bands Width
-        df['std_20'] = df['close'].rolling(window=20).std()
+        df['std_20'] = df['Close'].rolling(window=20).std()
         df['band_width'] = (df['std_20'] * 4) / df['sma_20']
         
         # ATR Normalizado
-        df['atr_norm'] = df['atr'] / df['close']
+        df['atr_norm'] = df['atr'] / df['Close']
         
         # --- 3. MORFOLOGIA DE CANDLE ---
         
-        df['body_size'] = np.abs(df['close'] - df['open'])
-        df['upper_shadow'] = df['high'] - df[['open', 'close']].max(axis=1)
-        df['lower_shadow'] = df[['open', 'close']].min(axis=1) - df['low']
+        df['body_size'] = np.abs(df['Close'] - df['Open'])
+        df['upper_shadow'] = df['High'] - df[['Open', 'Close']].max(axis=1)
+        df['lower_shadow'] = df[['Open', 'Close']].min(axis=1) - df['Low']
         
         # Normalizar pela volatilidade (ATR)
         df['body_rel'] = df['body_size'] / (df['atr'] + 1e-6)
@@ -395,12 +402,16 @@ class LSTMVolatilityStrategy(BaseStrategy):
         Filtro Day Trade: Zera o target para candles após as 17:00 (horário limite)
         para evitar sinais próximos ao fechamento do pregão.
         """
-        df = self._normalize_ohlc_columns(data.copy())
+        self._validate_ohlcv_schema(
+            data,
+            source="LSTMVolatilityStrategy.define_target",
+        )
+        df = data.copy()
         
         # Calcular amplitude futura (Max High - Min Low nos próximos períodos)
         indexer = pd.api.indexers.FixedForwardWindowIndexer(window_size=self.target_period)
-        future_high = df['high'].rolling(window=indexer).max()
-        future_low = df['low'].rolling(window=indexer).min()
+        future_high = df['High'].rolling(window=indexer).max()
+        future_low = df['Low'].rolling(window=indexer).min()
         future_range = future_high - future_low
         
         # Threshold dinâmico baseado no ATR
@@ -431,21 +442,6 @@ class LSTMVolatilityStrategy(BaseStrategy):
         target = target[:-self.target_period]
         
         return pd.Series(target, index=df.index[:-self.target_period])
-
-    def _normalize_ohlc_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Normaliza colunas OHLCV para lowercase se vierem capitalizadas."""
-        column_map = {
-            'Open': 'open',
-            'High': 'high',
-            'Low': 'low',
-            'Close': 'close',
-            'Volume': 'volume'
-        }
-
-        if any(col in df.columns for col in column_map):
-            return df.rename(columns=column_map)
-
-        return df
 
     def define_model(self) -> BaseEstimator:
         """Retorna uma instância do wrapper do modelo LSTM Volatility."""

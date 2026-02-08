@@ -473,7 +473,7 @@ class SimulationEngine:
 
         # 6. Calcular Stops
         stop_loss_price, take_profit_price = None, None
-        current_price = current_features_row['close'].iloc[0] # Preço de fechamento do candle atual
+        current_price = current_features_row['Close'].iloc[0] # Preço de fechamento do candle atual
         final_signal = setup_result["final_decision"]
 
         if final_signal in ["COMPRA", "VENDA"]:
@@ -497,7 +497,7 @@ class SimulationEngine:
              indicators_series = current_features_row.iloc[0].round(5)
              indicators_dict = { k: (f"{v:.5f}" if isinstance(v, (float, np.floating)) and pd.notna(v) and np.isfinite(v) else str(v) if pd.notna(v) and np.isfinite(v) else "N/A")
                                  for k, v in indicators_series.items()
-                                 if k in strategy_instance.get_feature_names() or k in ['open','high','low','close','volume'] }
+                                 if k in strategy_instance.get_feature_names() or k in ['Open', 'High', 'Low', 'Close', 'Volume'] }
         except Exception as e: logger.warning(f"Erro extrair indicadores: {e}"); indicators_dict = {"erro": "Falha"}
 
         result = {

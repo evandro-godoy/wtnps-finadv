@@ -12,13 +12,17 @@ from tkinter import ttk, messagebox, scrolledtext
 import threading
 import queue
 import logging
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 import sys
+from typing import Deque
 
 # Adiciona o diretório raiz ao path para imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from src.core.event_bus import event_bus
+from src.events import InferenceSignalEvent, MarketDataCandleEvent
 from src.live.monitor_engine import RealTimeMonitor
 from src.live.replay_engine import ReplayEngine
 
@@ -83,6 +87,9 @@ class MonitorApp:
         
         # Queue para comunicação thread-safe
         self.update_queue = queue.Queue()
+
+        # Buffer local de candles para exibição (sem acesso ao buffer interno do monitor)
+        self.candle_buffer: Deque[dict] = deque(maxlen=self.buffer_size)
         
         # Janela de buffer (inicialmente None)
         self.buffer_window = None
@@ -95,6 +102,9 @@ class MonitorApp:
         
         # Constrói interface
         self._build_ui()
+
+        # Registra handlers no EventBus
+        self._register_event_handlers()
         
         # Inicia polling da queue
         self._poll_queue()
@@ -452,6 +462,25 @@ class MonitorApp:
         self.analysis_tree.tag_configure('ALERT', background='#fff3cd')
         self.analysis_tree.tag_configure('INFO', background='#d1ecf1')
         self.analysis_tree.tag_configure('TICK', background='#ffffff')
+
+    def _register_event_handlers(self) -> None:
+        """Registra handlers de eventos no EventBus."""
+        event_bus.subscribe("MARKET_DATA_CANDLE", self._on_market_data_event)
+        event_bus.subscribe("INFERENCE_SIGNAL", self._on_inference_signal_event)
+
+    def _on_market_data_event(self, event: MarketDataCandleEvent) -> None:
+        """Handler para eventos de candle do EventBus."""
+        self.update_queue.put({
+            'action': 'candle_event',
+            'event': event,
+        })
+
+    def _on_inference_signal_event(self, event: InferenceSignalEvent) -> None:
+        """Handler para eventos de inferência do EventBus."""
+        self.update_queue.put({
+            'action': 'signal_event',
+            'event': event,
+        })
     
     def _toggle_analysis_grid(self):
         """Método obsoleto - mantido para compatibilidade."""
@@ -492,8 +521,7 @@ class MonitorApp:
                     timeframe_str=self.timeframe,
                     threshold_alert=self.threshold_alert,
                     threshold_log=self.threshold_log,
-                    buffer_size=self.buffer_size,
-                    ui_callback=self._on_monitor_update
+                    buffer_size=self.buffer_size
                 )
             else:
                 # Modo Replay - usa ReplayEngine
@@ -516,7 +544,6 @@ class MonitorApp:
                     buffer_size=self.buffer_size,
                     speed_multiplier=speed,
                     config_path="configs/main.yaml",
-                    ui_callback=self._on_monitor_update,
                     progress_callback=self._on_replay_progress
                 )
             
@@ -587,20 +614,6 @@ class MonitorApp:
         # Atualiza semáforo para vermelho
         self.status_canvas.itemconfig(self.status_indicator, fill='#dc3545')
     
-    def _on_monitor_update(self, data: dict):
-        """
-        Callback chamado pelo monitor quando há nova atualização.
-        
-        Adiciona dados à queue para processamento thread-safe.
-        
-        Args:
-            data: Dicionário com dados do evento (type, timestamp, price, etc.)
-        """
-        self.update_queue.put({
-            'action': 'update',
-            'data': data
-        })
-    
     def _poll_queue(self):
         """
         Polling da queue de atualizações.
@@ -614,8 +627,10 @@ class MonitorApp:
                 try:
                     event = self.update_queue.get_nowait()
                     
-                    if event['action'] == 'update':
-                        self._process_update(event['data'])
+                    if event['action'] == 'candle_event':
+                        self._process_candle_update(event['event'])
+                    elif event['action'] == 'signal_event':
+                        self._process_signal_update(event['event'])
                     elif event['action'] == 'stopped':
                         self._reset_ui_state()
                     elif event['action'] == 'error':
@@ -634,83 +649,114 @@ class MonitorApp:
         finally:
             # Reagenda polling (100ms)
             self.root.after(100, self._poll_queue)
-    
-    def _process_update(self, data: dict):
-        """
-        Processa atualização do monitor e atualiza UI.
-        
-        Args:
-            data: Dicionário com dados do evento
-        """
+
+    def _process_candle_update(self, event: MarketDataCandleEvent) -> None:
+        """Atualiza header, gráfico e buffer local com dados de candle."""
         try:
-            # Atualiza dados do último candle no header
-            if 'open' in data and 'high' in data and 'low' in data and 'close' in data:
-                self.last_candle['open'] = data['open']
-                self.last_candle['high'] = data['high']
-                self.last_candle['low'] = data['low']
-                self.last_candle['close'] = data['close']
-                self.last_candle['volume'] = data.get('volume', 0)
-                self.last_candle['timestamp'] = data.get('timestamp')
-                
-                # Atualiza hora do candle (UTC)
-                timestamp = data.get('timestamp', datetime.now())
-                if isinstance(timestamp, str):
-                    timestamp = datetime.fromisoformat(timestamp)
-                
-                # Formata hora UTC (HH:MM:SS)
-                time_str = timestamp.strftime('%H:%M:%S')
-                self.candle_time_label.config(text=time_str)
-                
-                # Formata OHLC
-                o = self.last_candle['open']
-                h = self.last_candle['high']
-                l = self.last_candle['low']
-                c = self.last_candle['close']
-                
-                ohlc_text = f"O: {o:.2f} | H: {h:.2f} | L: {l:.2f} | C: {c:.2f}"
-                self.ohlc_label.config(text=ohlc_text)
-            
-            # Formata data/hora para o log (UTC no formato DD/MM/YYYY HH:MM:SS)
-            timestamp = data.get('timestamp', datetime.now())
-            if isinstance(timestamp, str):
-                timestamp = datetime.fromisoformat(timestamp)
-            
+            timestamp = event.timestamp
+            self.last_candle['open'] = event.Open
+            self.last_candle['high'] = event.High
+            self.last_candle['low'] = event.Low
+            self.last_candle['close'] = event.Close
+            self.last_candle['volume'] = event.Volume
+            self.last_candle['timestamp'] = timestamp
+
+            self.candle_buffer.append({
+                'timestamp': timestamp,
+                'open': event.Open,
+                'high': event.High,
+                'low': event.Low,
+                'close': event.Close,
+                'volume': event.Volume,
+            })
+
+            time_str = timestamp.strftime('%H:%M:%S')
+            self.candle_time_label.config(text=time_str)
+
+            ohlc_text = (
+                f"O: {event.Open:.2f} | H: {event.High:.2f} | "
+                f"L: {event.Low:.2f} | C: {event.Close:.2f}"
+            )
+            self.ohlc_label.config(text=ohlc_text)
+
+            if self.chart_widget:
+                candle_dict = {
+                    'time': timestamp,
+                    'open': event.Open,
+                    'high': event.High,
+                    'low': event.Low,
+                    'close': event.Close,
+                    'volume': event.Volume,
+                }
+                self.chart_widget.add_candle(candle_dict)
+        except Exception as exc:
+            logger.error(f"Erro ao processar candle: {exc}", exc_info=True)
+
+    def _process_signal_update(self, event: InferenceSignalEvent) -> None:
+        """Atualiza grids de sinais e analise tecnica a partir da inferencia."""
+        try:
+            indicators = event.indicators or {}
+            timestamp = event.timestamp
             datetime_str = timestamp.strftime('%d/%m/%Y %H:%M:%S')
-            
-            # Formata tipo
-            event_type = data.get('type', 'TICK')
-            
-            # Formata preço
-            price = data.get('close', data.get('price', 0.0))
-            price_str = f"R$ {price:,.2f}".replace(',', '_').replace('.', ',').replace('_', '.')
-            
-            # Formata probabilidade
-            probability = data.get('probability', 0.0)
-            prob_str = f"{probability:.1f}"
-            
-            # Mensagem
-            message = data.get('message', '')
-            
-            # === ADICIONA AO GRID ML (PRINCIPAL) ===
+
+            probability_pct = event.probability * 100
+            if probability_pct >= self.threshold_alert * 100:
+                event_type = 'ALERT'
+            elif probability_pct >= self.threshold_log * 100:
+                event_type = 'INFO'
+            else:
+                event_type = 'TICK'
+
+            direction = 'HOLD'
+            if event.ai_signal == 'COMPRA':
+                direction = 'CALL'
+            elif event.ai_signal == 'VENDA':
+                direction = 'PUT'
+
+            trend = indicators.get('trend', 'N/A')
+            trend_strength = indicators.get('trend_strength', '')
+            pattern = indicators.get('pattern', '')
+            support = indicators.get('support', 0.0)
+            resistance = indicators.get('resistance', 0.0)
+            signal_valid = indicators.get('signal_valid', False)
+            validation_reason = indicators.get('validation_reason', '')
+
+            if event_type == 'ALERT':
+                target = resistance if direction == 'CALL' else support
+                validation_icon = "OK" if signal_valid else "WARN"
+                message = (
+                    f"{validation_icon} SINAL {direction} ({probability_pct:.1f}%) | "
+                    f"Tendencia: {trend} ({trend_strength}) | "
+                    f"Padrao: {pattern} | "
+                    f"Alvo: {target:.2f}"
+                )
+            elif event_type == 'INFO':
+                rsi = indicators.get('rsi', 0.0)
+                rsi_condition = indicators.get('rsi_condition', '')
+                message = (
+                    f"Prob. moderada ({probability_pct:.1f}%) | "
+                    f"Tendencia: {trend} | "
+                    f"RSI: {rsi:.0f} ({rsi_condition})"
+                )
+            else:
+                message = f"Candle processado | Tendencia: {trend}"
+
+            price_str = f"R$ {event.price:,.2f}".replace(',', '_').replace('.', ',').replace('_', '.')
+            prob_str = f"{probability_pct:.1f}"
+
             self.logs_tree.insert(
                 '',
                 0,
                 values=(datetime_str, event_type, price_str, prob_str, message),
                 tags=(event_type,)
             )
-            
-            # === ADICIONA AO GRID ANÁLISE ===
-            # Formata tendência
-            trend = data.get('trend', 'N/A')
-            trend_strength = data.get('trend_strength', '')
+
+            trend_str = trend
             if trend_strength and trend != 'N/A':
                 trend_str = f"{trend} ({trend_strength[0]})"
-            else:
-                trend_str = trend
-            
-            # Formata RSI
-            rsi = data.get('rsi', 0.0)
-            rsi_condition = data.get('rsi_condition', '')
+
+            rsi = indicators.get('rsi', 0.0)
+            rsi_condition = indicators.get('rsi_condition', '')
             if rsi > 0:
                 rsi_str = f"{rsi:.0f}"
                 if rsi_condition == 'SOBRECOMPRADO':
@@ -719,61 +765,41 @@ class MonitorApp:
                     rsi_str += " 🔻"
             else:
                 rsi_str = "N/A"
-            
-            # Formata EMAs/SMAs
-            ema9 = data.get('ema_fast', 0.0)
-            sma20 = data.get('sma_fast', 0.0)
-            sma50 = data.get('sma_slow', 0.0)
-            
+
+            ema9 = indicators.get('ema_fast', indicators.get('ema_9', 0.0))
+            sma20 = indicators.get('sma_fast', 0.0)
+            sma50 = indicators.get('sma_slow', 0.0)
+
             ema9_str = f"{ema9:.0f}" if ema9 > 0 else "N/A"
             sma20_str = f"{sma20:.0f}" if sma20 > 0 else "N/A"
             sma50_str = f"{sma50:.0f}" if sma50 > 0 else "N/A"
-            
+
             self.analysis_tree.insert(
                 '',
                 0,
                 values=(datetime_str, trend_str, rsi_str, ema9_str, sma20_str, sma50_str),
                 tags=(event_type,)
             )
-            
-            # Limita número de linhas em ambos os grids (máximo 1000)
+
             for tree in [self.logs_tree, self.analysis_tree]:
                 children = tree.get_children()
                 if len(children) > 1000:
                     for item in children[1000:]:
                         tree.delete(item)
-            
-            # Auto-scroll para o topo (mostra evento mais recente)
+
             if children:
                 self.logs_tree.see(children[0])
-            
-            # === ATUALIZA GRÁFICO DE CANDLESTICK ===
+
             if self.chart_widget:
-                try:
-                    # Monta dict de candle para o chart
-                    candle_dict = {
-                        'time': timestamp,
-                        'open': data.get('open', price),
-                        'high': data.get('high', price),
-                        'low': data.get('low', price),
-                        'close': price,
-                        'volume': data.get('volume', 0)
-                    }
-                    self.chart_widget.add_candle(candle_dict)
-                    
-                    # Atualiza indicadores se disponíveis
-                    self.chart_widget.update_indicators(
-                        ema9=data.get('ema_20', data.get('ema_fast')),
-                        sma20=data.get('sma_20', data.get('sma_fast')),
-                        sma50=data.get('sma_50', data.get('sma_slow')),
-                        support=data.get('support'),
-                        resistance=data.get('resistance')
-                    )
-                except Exception as chart_error:
-                    logger.warning(f"Erro ao atualizar gráfico: {chart_error}")
-        
-        except Exception as e:
-            logger.error(f"Erro ao processar atualização: {e}", exc_info=True)
+                self.chart_widget.update_indicators(
+                    ema9=indicators.get('ema_20', indicators.get('ema_fast')),
+                    sma20=indicators.get('sma_20', indicators.get('sma_fast')),
+                    sma50=indicators.get('sma_50', indicators.get('sma_slow')),
+                    support=indicators.get('support'),
+                    resistance=indicators.get('resistance')
+                )
+        except Exception as exc:
+            logger.error(f"Erro ao processar sinal: {exc}", exc_info=True)
     
     def _clear_logs(self):
         """Limpa todos os logs de ambos os Treeviews e o gráfico."""
@@ -790,17 +816,10 @@ class MonitorApp:
     
     def _show_buffer_window(self):
         """Abre janela modal para exibir o buffer de dados."""
-        if not self.monitor or not hasattr(self.monitor, 'buffer_df'):
-            messagebox.showinfo(
-                "Buffer Indisponível",
-                "O monitor ainda não foi iniciado ou não possui dados em buffer."
-            )
-            return
-        
-        if self.monitor.buffer_df is None or self.monitor.buffer_df.empty:
+        if not self.candle_buffer:
             messagebox.showinfo(
                 "Buffer Vazio",
-                "O buffer de dados está vazio."
+                "Nenhum candle recebido via EventBus."
             )
             return
         
@@ -820,7 +839,7 @@ class MonitorApp:
         # Label informativo
         info_label = ttk.Label(
             container,
-            text=f"Total de registros: {len(self.monitor.buffer_df)}",
+            text=f"Total de registros: {len(self.candle_buffer)}",
             font=('Segoe UI', 10, 'bold')
         )
         info_label.pack(anchor=tk.W, pady=(0, 5))
@@ -869,21 +888,22 @@ class MonitorApp:
         buffer_tree.column('volume', width=100, anchor=tk.E)
         
         # Popula dados (ordem reversa - mais recentes primeiro)
-        df = self.monitor.buffer_df
-        for idx in reversed(df.index):
-            row = df.loc[idx]
-            timestamp_str = idx.strftime('%Y-%m-%d %H:%M:%S')
-            
+        for candle in reversed(self.candle_buffer):
+            timestamp = candle.get('timestamp')
+            if isinstance(timestamp, str):
+                timestamp = datetime.fromisoformat(timestamp)
+            timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+
             buffer_tree.insert(
                 '',
                 'end',
                 values=(
                     timestamp_str,
-                    f"{row['open']:.2f}",
-                    f"{row['high']:.2f}",
-                    f"{row['low']:.2f}",
-                    f"{row['close']:.2f}",
-                    int(row.get('volume', 0))
+                    f"{candle.get('open', 0.0):.2f}",
+                    f"{candle.get('high', 0.0):.2f}",
+                    f"{candle.get('low', 0.0):.2f}",
+                    f"{candle.get('close', 0.0):.2f}",
+                    int(candle.get('volume', 0))
                 )
             )
         

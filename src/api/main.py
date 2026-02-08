@@ -23,8 +23,9 @@ from pathlib import Path
 from src.api.websocket_manager import WebSocketManager
 from src.api.routes.chart_data import router as chart_data_router
 from src.core.config import settings
+from src.core.event_bus import event_bus
 from src.live.monitor_engine import RealTimeMonitor
-from src.events import InferenceSignalEvent
+from src.events import InferenceSignalEvent, MarketDataCandleEvent
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,6 +35,8 @@ monitor_engine: Optional[RealTimeMonitor] = None
 monitor_thread: Optional[threading.Thread] = None
 monitor_lock = threading.Lock()
 ws_manager = WebSocketManager()
+last_candle_time_cache: Optional[str] = None
+_subscriptions_registered = False
 
 # Get template directory
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -74,6 +77,7 @@ def _read_template(template_name: str) -> Optional[str]:
 def _start_monitor_engine(ticker: str, timeframe: str) -> Tuple[bool, str]:
     """Start the monitor in a background thread to avoid blocking the API."""
     global monitor_engine, monitor_thread
+    global _subscriptions_registered
 
     with monitor_lock:
         if monitor_engine and monitor_engine.running:
@@ -87,10 +91,12 @@ def _start_monitor_engine(ticker: str, timeframe: str) -> Tuple[bool, str]:
                 engine = RealTimeMonitor(
                     ticker=ticker,
                     timeframe_str=timeframe,
-                    ui_callback=None,
                 )
-                engine.event_bus.subscribe("INFERENCE_SIGNAL", handle_inference_signal)
-                engine.event_bus.subscribe("INFERENCE_SIGNAL", cache_signal)
+                if not _subscriptions_registered:
+                    event_bus.subscribe("INFERENCE_SIGNAL", handle_inference_signal)
+                    event_bus.subscribe("INFERENCE_SIGNAL", cache_signal)
+                    event_bus.subscribe("MARKET_DATA_CANDLE", cache_candle)
+                    _subscriptions_registered = True
                 monitor_engine = engine
                 engine.start_time = datetime.now()
                 engine.start()
@@ -163,6 +169,12 @@ def handle_inference_signal(event: InferenceSignalEvent):
     asyncio.create_task(ws_manager.broadcast(signal_data))
 
 
+def cache_candle(event: MarketDataCandleEvent) -> None:
+    """Cache last candle timestamp for status endpoint."""
+    global last_candle_time_cache
+    last_candle_time_cache = event.timestamp.isoformat()
+
+
 @app.get("/", tags=["Health"])
 async def root():
     """Root endpoint - serves home template."""
@@ -224,9 +236,7 @@ async def get_status():
         uptime = (datetime.now() - monitor_engine.start_time).total_seconds()
     
     # Get last candle time
-    last_candle_time = None
-    if monitor_engine.buffer_df is not None and len(monitor_engine.buffer_df) > 0:
-        last_candle_time = monitor_engine.buffer_df.index[-1].isoformat()
+    last_candle_time = last_candle_time_cache
     
     return StatusResponse(
         running=monitor_engine.running,

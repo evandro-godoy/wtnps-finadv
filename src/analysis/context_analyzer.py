@@ -12,6 +12,7 @@ import numpy as np
 import logging
 from typing import Dict, Optional, Tuple
 
+from src.data_handler.ohlcv_schema import validate_ohlcv_schema
 logger = logging.getLogger(__name__)
 
 
@@ -72,7 +73,7 @@ class MarketContextAnalyzer:
         Executa análise técnica completa do mercado.
         
         Args:
-            df: DataFrame com OHLCV (index: datetime, cols: open, high, low, close, volume)
+            df: DataFrame com OHLCV (index: datetime, cols: Open, High, Low, Close, Volume)
         
         Returns:
             Dicionário com análise completa:
@@ -97,15 +98,18 @@ class MarketContextAnalyzer:
                 logger.warning(f"DataFrame insuficiente para análise: {len(df)} linhas")
                 return self._empty_analysis()
             
-            # Copia para não modificar original e normaliza colunas OHLCV
-            data = self._normalize_ohlc_columns(df.copy())
+            validate_ohlcv_schema(
+                df,
+                source="MarketContextAnalyzer.analyze",
+            )
+            data = df.copy()
             
             # Calcula indicadores
             data = self._calculate_indicators(data)
             
             # Obtém última linha (candle mais recente)
             last = data.iloc[-1]
-            current_price = last['close']
+            current_price = last['Close']
             
             # 1. Análise de Tendência
             trend, trend_strength = self._analyze_trend(data)
@@ -148,34 +152,19 @@ class MarketContextAnalyzer:
             logger.error(f"Erro na análise de contexto: {e}", exc_info=True)
             return self._empty_analysis()
 
-    def _normalize_ohlc_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Normaliza colunas OHLCV para lowercase se vierem capitalizadas."""
-        column_map = {
-            'Open': 'open',
-            'High': 'high',
-            'Low': 'low',
-            'Close': 'close',
-            'Volume': 'volume'
-        }
-
-        if any(col in df.columns for col in column_map):
-            return df.rename(columns=column_map)
-
-        return df
-    
     def _calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calcula todos os indicadores técnicos necessários."""
         # EMA rápida
-        df['ema_fast'] = df['close'].ewm(span=self.ema_fast, adjust=False).mean()
+        df['ema_fast'] = df['Close'].ewm(span=self.ema_fast, adjust=False).mean()
         
         # SMA rápida adicional
-        df['sma_fast'] = df['close'].rolling(window=self.sma_fast).mean()
+        df['sma_fast'] = df['Close'].rolling(window=self.sma_fast).mean()
         
         # SMA lenta
-        df['sma_slow'] = df['close'].rolling(window=self.sma_slow).mean()
+        df['sma_slow'] = df['Close'].rolling(window=self.sma_slow).mean()
         
         # RSI
-        df['rsi'] = self._calculate_rsi(df['close'], self.rsi_period)
+        df['rsi'] = self._calculate_rsi(df['Close'], self.rsi_period)
         
         return df
     
@@ -217,7 +206,7 @@ class MarketContextAnalyzer:
         ema_fast = last['ema_fast']
         sma_fast = last['sma_fast']
         sma_slow = last['sma_slow']
-        close = last['close']
+        close = last['Close']
         
         # Verifica cruzamento de médias
         ema_above_sma = ema_fast > sma_fast
@@ -293,10 +282,10 @@ class MarketContextAnalyzer:
         lookback_data = df.tail(self.lookback_levels)
         
         # Suporte = mínima dos últimos N períodos
-        support = lookback_data['low'].min()
+        support = lookback_data['Low'].min()
         
         # Resistência = máxima dos últimos N períodos
-        resistance = lookback_data['high'].max()
+        resistance = lookback_data['High'].max()
         
         return support, resistance
     
@@ -314,10 +303,10 @@ class MarketContextAnalyzer:
         Returns:
             String descrevendo o padrão
         """
-        open_price = candle['open']
-        high = candle['high']
-        low = candle['low']
-        close = candle['close']
+        open_price = candle['Open']
+        high = candle['High']
+        low = candle['Low']
+        close = candle['Close']
         
         # Calcula componentes do candle
         total_range = high - low

@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from sklearn.base import BaseEstimator # Necessário para type hint
 import logging # Necessário para logging
 
+from src.data_handler.ohlcv_schema import validate_ohlcv_schema
+
 class BaseStrategy(ABC):
     """
     Classe base abstrata para todas as estratégias de trading.
@@ -44,6 +46,17 @@ class BaseStrategy(ABC):
         features para o modelo.
         """
         pass
+
+    @staticmethod
+    def _validate_ohlcv_schema(data: pd.DataFrame, source: str) -> None:
+        """
+        Valida o schema OHLCV com colunas canônicas e index UTC.
+
+        Args:
+            data: DataFrame a ser validado.
+            source: Identificador do chamador para mensagens de erro.
+        """
+        validate_ohlcv_schema(data, source=source)
 
     # --- NOVOS MÉTODOS PARA PERSISTÊNCIA ---
     
@@ -95,6 +108,6 @@ def calculate_target(data: pd.DataFrame, target_period: int = 1) -> pd.Series:
     0 caso contrário.
     """
     df = data.copy()
-    df['future_close'] = df['close'].shift(-target_period)
-    df['target'] = (df['future_close'] > df['close']).astype(int)
+    df['future_close'] = df['Close'].shift(-target_period)
+    df['target'] = (df['future_close'] > df['Close']).astype(int)
     return df['target']

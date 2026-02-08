@@ -10,6 +10,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 import os # Para criar diretório
 
+from src.data_handler.ohlcv_schema import standardize_ohlcv_schema
+
 # Configuração do logging
 # CORREÇÃO APLICADA AQUI: 'asctimes' -> 'asctime'
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -205,15 +207,27 @@ class MetaTraderProvider(BaseDataProvider):
 
         data['time'] = pd.to_datetime(data['time'], unit='s', utc=True)
         data.set_index('time', inplace=True)
-        data.rename(columns={'open': 'open', 'high': 'high', 'low': 'low',
-                                'close': 'close', 'tick_volume': 'volume'}, inplace=True)
+        data.rename(
+            columns={
+                'open': 'Open',
+                'high': 'High',
+                'low': 'Low',
+                'close': 'Close',
+                'tick_volume': 'Volume',
+            },
+            inplace=True,
+        )
         # Garante colunas essenciais
-        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
         for col in required_cols:
                 if col not in data.columns:
                     data[col] = 0 # Preenche volume faltante com 0
 
         data = data[required_cols] # Seleciona e ordena
+        data = standardize_ohlcv_schema(
+            data,
+            source="MetaTraderProvider.get_data",
+        )
         try:
              logger.info(f"Salvando dados de {ticker} ({len(data)} registros) em cache: {cache_filepath}")
              data.to_parquet(cache_filepath, index=True, compression='snappy')
@@ -242,13 +256,30 @@ class MetaTraderProvider(BaseDataProvider):
         data = pd.DataFrame(rates)
         data['time'] = pd.to_datetime(data['time'], unit='s', utc=True)
         data.set_index('time', inplace=True)
-        data.rename(columns={'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close', 'tick_volume': 'volume'}, inplace=True)
-        if 'real_volume' in data.columns and 'volume' not in data.columns: data.rename(columns={'real_volume': 'volume'}, inplace=True)
-        elif 'real_volume' in data.columns and 'volume' in data.columns: data = data.drop(columns=['real_volume'])
+        data.rename(
+            columns={
+                'open': 'Open',
+                'high': 'High',
+                'low': 'Low',
+                'close': 'Close',
+                'tick_volume': 'Volume',
+            },
+            inplace=True,
+        )
+        if 'real_volume' in data.columns and 'Volume' not in data.columns:
+            data.rename(columns={'real_volume': 'Volume'}, inplace=True)
+        elif 'real_volume' in data.columns and 'Volume' in data.columns:
+            data = data.drop(columns=['real_volume'])
 
-        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
         data = data[[col for col in required_cols if col in data.columns]]
-        if 'volume' not in data.columns: data['volume'] = 0
+        if 'Volume' not in data.columns:
+            data['Volume'] = 0
+
+        data = standardize_ohlcv_schema(
+            data,
+            source="MetaTraderProvider.get_latest_candles",
+        )
 
         # Mantém dados em UTC (sem conversão de timezone)
         # data = data.tz_convert(desired_timezone)
@@ -426,7 +457,16 @@ class YFinanceProvider(BaseDataProvider):
             pd.DataFrame().to_parquet(cache_filepath, index=False) # Cache vazio
             return pd.DataFrame()
 
-        data.rename(columns={'Open': 'open', 'High': 'high', 'Low': 'low', 'Close': 'close', 'Volume': 'volume'}, inplace=True)
+        data.rename(
+            columns={
+                'Open': 'Open',
+                'High': 'High',
+                'Low': 'Low',
+                'Close': 'Close',
+                'Volume': 'Volume',
+            },
+            inplace=True,
+        )
         
         # yfinance pode retornar índice como DatetimeIndex ou não
         if not isinstance(data.index, pd.DatetimeIndex):
@@ -446,7 +486,11 @@ class YFinanceProvider(BaseDataProvider):
         #      try: data = data.tz_convert(desired_timezone)
         #      except Exception as e_tz_conv: logger.warning(f"Erro ao converter timezone YF para {ticker}: {e_tz_conv}")
 
-        data = data[['open', 'high', 'low', 'close', 'volume']]
+        data = data[['Open', 'High', 'Low', 'Close', 'Volume']]
+        data = standardize_ohlcv_schema(
+            data,
+            source="YFinanceProvider.get_data",
+        )
 
         try:
              logger.info(f"Salvando dados YF de {ticker} ({len(data)} registros) em cache: {cache_filepath}")
@@ -475,7 +519,16 @@ class YFinanceProvider(BaseDataProvider):
             return pd.DataFrame()
 
         # Renomeia, ajusta índice e timezone
-        data.rename(columns={'Open': 'open', 'High': 'high', 'Low': 'low', 'Close': 'close', 'Volume': 'volume'}, inplace=True)
+        data.rename(
+            columns={
+                'Open': 'Open',
+                'High': 'High',
+                'Low': 'Low',
+                'Close': 'Close',
+                'Volume': 'Volume',
+            },
+            inplace=True,
+        )
         if not isinstance(data.index, pd.DatetimeIndex):
             if 'Datetime' in data.columns: data.index = pd.to_datetime(data['Datetime'])
             elif 'Date' in data.columns: data.index = pd.to_datetime(data['Date'])
@@ -489,7 +542,11 @@ class YFinanceProvider(BaseDataProvider):
         #     try: data = data.tz_convert(desired_timezone)
         #     except Exception: logger.warning(f"Não converteu timezone YF recente para {ticker}.")
             
-        return data[['open', 'high', 'low', 'close', 'volume']]
+        data = data[['Open', 'High', 'Low', 'Close', 'Volume']]
+        return standardize_ohlcv_schema(
+            data,
+            source="YFinanceProvider.get_latest_candles",
+        )
 
 # --- Função Factory ---
 def get_provider_instance(provider_name: str) -> BaseDataProvider:
