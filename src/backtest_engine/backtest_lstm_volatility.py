@@ -31,6 +31,7 @@ from typing import Dict, List, Tuple, Optional
 import json
 import importlib
 from src.data_handler import provider as data_provider_module
+from src.data_handler.ohlcv_schema import validate_ohlcv_schema
 from sklearn.metrics import (
     accuracy_score, 
     precision_score, 
@@ -104,6 +105,10 @@ class BacktestEngine:
         Returns:
             Dicionário com resultados do backtest
         """
+        if not isinstance(prices, pd.DataFrame) or prices.empty:
+            raise ValueError(
+                "BacktestEngine.run_backtest: prices is empty"
+            )
         logger.info(f"=== Iniciando Backtest para {ticker} ===")
         logger.info(f"Threshold: {threshold:.2f}")
         # Sanidade dos tamanhos
@@ -336,6 +341,14 @@ class BacktestEngine:
         - Max holding: força saída 'MAX_HOLDING' se excede max_holding_candles.
         - Calcula PnL em R com base no stop quando disponível.
         """
+        if not isinstance(prices, pd.DataFrame) or prices.empty:
+            raise ValueError(
+                "BacktestEngine._simulate_daytrade_positions: prices is empty"
+            )
+        validate_ohlcv_schema(
+            prices,
+            source="BacktestEngine._simulate_daytrade_positions",
+        )
         logger.info("Simulando Day Trade com controle de posição...")
         self.trades = []
         open_pos = None
@@ -353,7 +366,7 @@ class BacktestEngine:
 
             # Overnight force close if date changed and position still open
             if open_pos and prev_ts is not None and ts.date() != prev_ts.date():
-                prev_close = prices.loc[prev_ts, 'close'] if prev_ts in prices.index else open_pos['entry_price']
+                prev_close = prices.loc[prev_ts, 'Close'] if prev_ts in prices.index else open_pos['entry_price']
                 pnl_r = (prev_close - open_pos['entry_price']) / (open_pos['entry_price'] - open_pos['stop_price']) if open_pos['stop_price'] else 0.0
                 trade = {
                     'day': prev_ts.date().isoformat(),
@@ -375,7 +388,7 @@ class BacktestEngine:
 
             # Market close enforcement
             if open_pos and hour >= market_close_hour:
-                exit_price = row['close']
+                exit_price = row['Close']
                 pnl_r = (exit_price - open_pos['entry_price']) / (open_pos['entry_price'] - open_pos['stop_price']) if open_pos['stop_price'] else 0.0
                 trade = {
                     'day': ts.date().isoformat(),
@@ -399,7 +412,7 @@ class BacktestEngine:
 
             # Open position
             if open_pos is None and signal == 1 and hour < market_close_hour:
-                entry_price = row['close']
+                entry_price = row['Close']
                 stop_price = entry_price * (1 - stop_loss_pct) if stop_loss_pct else None
                 take_profit_price = entry_price * (1 + take_profit_pct) if take_profit_pct else None
                 open_pos = {
@@ -414,8 +427,8 @@ class BacktestEngine:
 
             # Manage open position
             if open_pos:
-                high = row['high']
-                low = row['low']
+                high = row['High']
+                low = row['Low']
                 exit_reason = None
                 exit_price = None
                 stop_hit = open_pos['stop_price'] is not None and low <= open_pos['stop_price']
@@ -433,7 +446,7 @@ class BacktestEngine:
                     holding = i - open_pos['entry_index'] + 1
                     if holding >= max_holding_candles:
                         exit_reason = 'MAX_HOLDING'
-                        exit_price = row['close']
+                        exit_price = row['Close']
 
                 if exit_reason:
                     if open_pos['stop_price']:
@@ -468,7 +481,7 @@ class BacktestEngine:
         # Final close if still open
         if open_pos:
             last_ts = prices.index[-1]
-            exit_price = prices.iloc[-1]['close']
+            exit_price = prices.iloc[-1]['Close']
             if open_pos['stop_price']:
                 pnl_r = (exit_price - open_pos['entry_price']) / (open_pos['entry_price'] - open_pos['stop_price'])
             else:
