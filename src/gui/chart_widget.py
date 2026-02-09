@@ -114,11 +114,11 @@ class CandlestickChartWidget(ttk.Frame):
         Adiciona novo candle ao gráfico.
         
         Args:
-            candle_data: Dict com keys: time, open, high, low, close, volume
+            candle_data: Dict com keys: time, Open, High, Low, Close, Volume
         """
         try:
             # Valida dados
-            required_keys = ['time', 'open', 'high', 'low', 'close', 'volume']
+            required_keys = ['time', 'Open', 'High', 'Low', 'Close', 'Volume']
             if not all(k in candle_data for k in required_keys):
                 logger.warning(f"Candle data incompleto: {candle_data.keys()}")
                 return
@@ -188,15 +188,6 @@ class CandlestickChartWidget(ttk.Frame):
             
             # Define time como index
             df.set_index('time', inplace=True)
-            
-            # Renomeia colunas para formato mplfinance (Open, High, Low, Close, Volume)
-            df.rename(columns={
-                'open': 'Open',
-                'high': 'High',
-                'low': 'Low',
-                'close': 'Close',
-                'volume': 'Volume'
-            }, inplace=True)
             
             # Prepara addplot para indicadores
             addplots = []

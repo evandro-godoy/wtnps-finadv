@@ -36,10 +36,10 @@ def simulate_trades_with_stops(market_data: pd.DataFrame, signals: pd.DataFrame,
         
         # --- LÓGICA DE SAÍDA DE POSIÇÃO ---
         if position_open:
-            current_low = trade_data['low'].iloc[i]
-            current_high = trade_data['high'].iloc[i]
+            current_low = trade_data['Low'].iloc[i]
+            current_high = trade_data['High'].iloc[i]
             exit_reason = "End of Data"
-            exit_price = trade_data['close'].iloc[i]
+            exit_price = trade_data['Close'].iloc[i]
             trade_return_pct = 0
 
             # Lógica para Posição Comprada (LONG)
@@ -96,12 +96,12 @@ def simulate_trades_with_stops(market_data: pd.DataFrame, signals: pd.DataFrame,
             if signal == 1:
                 position_open = 'LONG'
                 entry_date = trade_data.index[i+1]
-                entry_price = trade_data['open'].iloc[i+1]
+                entry_price = trade_data['Open'].iloc[i+1]
             # Sinal de Venda (SHORT)
             elif signal == 0:
                 position_open = 'SHORT'
                 entry_date = trade_data.index[i+1]
-                entry_price = trade_data['open'].iloc[i+1]
+                entry_price = trade_data['Open'].iloc[i+1]
     
     # --- GERAÇÃO DOS DOIS DATAFRAMES DE RESULTADO ---
     

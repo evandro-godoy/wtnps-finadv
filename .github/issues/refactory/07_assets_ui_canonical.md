@@ -9,6 +9,18 @@ assignees: 'Fullstack'
 ## 🎯 Objetivo
 Alinhar templates e static files ao layout canonico para evitar caminhos alternativos.
 
+## 📌 Status (2026-02-08)
+**Estado:** Pendente.
+
+**Evidencias (codigo):**
+- API monta `TEMPLATES_DIR` e `STATIC_DIR` a partir da raiz (`/templates` e `/static`).
+- Nao ha consolidacao para `src/interface/templates` + `src/interface/static` no runtime principal.
+
+**Arquivos verificados:**
+- src/api/main.py
+- docs/architecture/PROJECT_ARCHITECT_HANDOVER.md
+- docs/architecture/CANONICAL_LAYOUT.md
+
 ## 📂 Contexto & Arquivos
 - **Alvo:** src/api/main.py, templates/, src/interface (se criado)
 - **Dependências:** charts_clean.html, home.html, static assets
@@ -19,6 +31,21 @@ Alinhar templates e static files ao layout canonico para evitar caminhos alterna
 2. Mover assets do diretorio raiz para o local canonico.
 3. Atualizar FastAPI para usar apenas o local canonico.
 4. Remover logica de fallback para caminhos alternativos.
+
+## 🧭 Escopo detalhado
+- Consolidar templates e static no layout canonico indicado em docs.
+- Atualizar FastAPI para apontar apenas ao local canonico.
+- Remover duplicatas de templates/static na raiz.
+
+## 🔧 Passos de implementacao
+1. Definir o caminho canonico (ex.: `src/interface/templates` e `src/interface/static`).
+2. Mover assets da raiz para o local canonico.
+3. Atualizar `TEMPLATES_DIR`/`STATIC_DIR` na API para usar apenas o local canonico.
+4. Remover fallbacks e caminhos alternativos.
+
+## 🧪 Plano de verificacao
+- Smoke test: `/` e `/charts` servem HTML e assets corretamente.
+- Confirmar inexistencia de templates/static fora do local canonico.
 
 ## 🔗 Dependências & Bloqueios
 - [ ] Verificar referencia de templates na API e UI

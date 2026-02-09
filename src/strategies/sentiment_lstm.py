@@ -9,7 +9,7 @@ class SentimentLSTMStrategy(BaseStrategy):
     def __init__(self, lookback=60, lstm_units=50):
         self.lookback = lookback
         self.lstm_units = lstm_units
-        # Usando nomes em minúsculas
+        # Features derivadas do schema OHLCV canonico
         self.feature_names = [
             'sma_9', 'ema_21', 'ema_50', 'ema_200', 'rsi',
             'Volume', 'volatility', 'sentiment'
@@ -22,7 +22,7 @@ class SentimentLSTMStrategy(BaseStrategy):
         )
         df = data.copy()
         
-        # Usando 'close' em minúsculo
+        # Indicadores derivados do fechamento canonico
         df['sma_9'] = df['Close'].rolling(window=9).mean()
         df['ema_21'] = df['Close'].ewm(span=21, adjust=False).mean()
         df['ema_50'] = df['Close'].ewm(span=50, adjust=False).mean()

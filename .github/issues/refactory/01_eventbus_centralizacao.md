@@ -9,6 +9,38 @@ assignees: 'Architect'
 ## 🎯 Objetivo
 Restaurar o fluxo event-driven como via exclusiva de comunicacao entre modulos, eliminando acoplamento direto de UI e acesso direto a dados internos do monitor.
 
+## 📌 Status (2026-02-08)
+**Estado:** Parcial.
+
+**Evidencias (codigo):**
+- Monitor publica eventos via singleton `event_bus` e usa `MarketDataCandleEvent`/`InferenceSignalEvent`.
+- API e GUI se inscrevem no `event_bus` (sem leitura direta de `buffer_df`).
+- `RealTimeMonitor` ainda mantem `buffer_df` interno (necessario para inferencia), mas o contrato canonico `MARKET_DATA_CANDLE` ainda nao esta validado com schema/DTO no producer/consumer.
+- Existe logica paralela de UI em backup que ainda usa `buffer_df` (arquivo de backup, nao usado em runtime principal).
+
+**Arquivos verificados:**
+- src/live/monitor_engine.py
+- src/api/main.py
+- src/gui/monitor_ui.py
+- src/core/event_bus.py
+
+## 🧭 Escopo detalhado
+- Centralizar a comunicacao entre monitor, API e GUI exclusivamente via `event_bus`.
+- Eliminar qualquer dependencia de leitura direta de `buffer_df` e callbacks diretos.
+- Garantir o contrato canonico de `MARKET_DATA_CANDLE` e `INFERENCE_SIGNAL` com payload completo.
+- Manter `buffer_df` apenas como estado interno do monitor (nao exposto).
+
+## 🔧 Passos de implementacao
+1. Inventariar acessos diretos a `buffer_df`/`ui_callback` em monitor, API e GUI.
+2. Ajustar produtores para publicar eventos canonicos com todos os campos obrigatorios.
+3. Ajustar consumidores para usar apenas eventos (sem leitura de buffers internos).
+4. Atualizar checklist de smoke test e contrato no issue.
+
+## 🧪 Plano de verificacao
+- Confirmar publish/subscribe dos eventos `MARKET_DATA_CANDLE` e `INFERENCE_SIGNAL`.
+- Acessar `/charts` e validar atualizacao via eventos.
+- Garantir ausencia de acessos diretos a `buffer_df` fora do monitor.
+
 ## 📂 Contexto & Arquivos
 - **Alvo:** src/live/monitor_engine.py, src/core/event_bus.py, src/gui/monitor_ui.py, src/api/main.py
 - **Dependências:** EventBus, InferenceSignalEvent, WebSocketManager
@@ -61,9 +93,9 @@ Restaurar o fluxo event-driven como via exclusiva de comunicacao entre modulos, 
 
 ## 📦 Definition of Done (DoD)
 - [ ] Comunicacao entre modulos via EventBus apenas
-- [ ] UI e API sem acesso direto a `buffer_df`
-- [ ] `event_bus` singleton usado no monitor e consumidores
-- [ ] Eventos `MARKET_DATA_CANDLE` e `INFERENCE_SIGNAL` definidos e publicados
+- [x] UI e API sem acesso direto a `buffer_df`
+- [x] `event_bus` singleton usado no monitor e consumidores
+- [x] Eventos `MARKET_DATA_CANDLE` e `INFERENCE_SIGNAL` definidos e publicados
 - [ ] UI e WebSocket recebem payloads via eventos sem regressao visual
 - [ ] Testes de integracao atualizados ou checklist de smoke test adicionado
 - [ ] Documentacao de fluxo event-driven atualizada

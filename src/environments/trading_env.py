@@ -10,6 +10,8 @@ import pandas as pd
 import logging
 from typing import Tuple, Optional, Dict, Any
 
+from src.data_handler.ohlcv_schema import validate_ohlcv_schema
+
 logger = logging.getLogger(__name__)
 
 
@@ -95,6 +97,11 @@ class TradingEnv:
         
         if self.raw_data is None or len(self.raw_data) == 0:
             raise ValueError(f"Nenhum dado histórico obtido para {self.ticker}")
+
+        validate_ohlcv_schema(
+            self.raw_data,
+            source="TradingEnv._load_historical_data",
+        )
         
         logger.info(f"Dados carregados: {len(self.raw_data)} candles de {start_date} a {end_date}")
     
@@ -117,23 +124,23 @@ class TradingEnv:
         # --- Novas Features usando pandas_ta ---
         
         # 1. EMA 9
-        df['ema_9'] = ta.ema(df['close'], length=9)
+        df['ema_9'] = ta.ema(df['Close'], length=9)
         
         # 2. SMA 20
-        df['sma_20'] = ta.sma(df['close'], length=20)
+        df['sma_20'] = ta.sma(df['Close'], length=20)
         
         # 3. SMA 200
-        df['sma_200'] = ta.sma(df['close'], length=200)
+        df['sma_200'] = ta.sma(df['Close'], length=200)
         
         # 4. Distância (normalizada) para a SMA 20
-        df['dist_sma_20'] = (df['close'] - df['sma_20']) / df['close']
+        df['dist_sma_20'] = (df['Close'] - df['sma_20']) / df['Close']
         
         # 5. Distância (normalizada) para a SMA 200
-        df['dist_sma_200'] = (df['close'] - df['sma_200']) / df['close']
+        df['dist_sma_200'] = (df['Close'] - df['sma_200']) / df['Close']
         
         # 6. ATR (Volatilidade Normalizada)
-        atr = ta.atr(df['high'], df['low'], df['close'], length=14)
-        df['atr'] = atr / df['close']  # Normaliza o ATR pelo preço
+        atr = ta.atr(df['High'], df['Low'], df['Close'], length=14)
+        df['atr'] = atr / df['Close']  # Normaliza o ATR pelo preco
         
         # Lista de nomes das novas features
         self.market_feature_names = [
@@ -144,7 +151,7 @@ class TradingEnv:
         # Normaliza as features baseadas em preço (exceto distâncias e ATR que já são relativos)
         price_features = ['ema_9', 'sma_20', 'sma_200']
         for col in price_features:
-            df[col] = (df[col] / df['close']) - 1  # Normaliza pelo preço de fechamento
+            df[col] = (df[col] / df['Close']) - 1  # Normaliza pelo preco de fechamento
         
         # Remove NaN (primeiras linhas sem dados suficientes)
         df = df.dropna()
@@ -156,7 +163,7 @@ class TradingEnv:
         self.market_features_only = df[self.market_feature_names].values
         
         # Armazena preços de fechamento para cálculo de PnL
-        self.prices = df['close'].values
+        self.prices = df['Close'].values
         
         logger.info(f"Features calculadas: {len(self.market_features_only)} steps, {len(self.market_feature_names)} features")
     

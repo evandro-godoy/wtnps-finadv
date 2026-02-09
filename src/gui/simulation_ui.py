@@ -361,14 +361,14 @@ class SimulationApp(tk.Tk):
                 probs_cache.append(signal_prob)
                 row = window_df.iloc[-1]
                 atr = float(row.get("atr", 0.0))
-                ema_trend = float(row.get("ema_9", row.get("close")))
+                ema_trend = float(row.get("ema_9", row.get("Close")))
                 ts = window_df.index[-1].to_pydatetime()
                 engine.update(
                     timestamp=ts,
-                    open_p=float(row.get("open")),
-                    high=float(row.get("high")),
-                    low=float(row.get("low")),
-                    close=float(row.get("close")),
+                    open_p=float(row.get("Open")),
+                    high=float(row.get("High")),
+                    low=float(row.get("Low")),
+                    close=float(row.get("Close")),
                     signal_prob=signal_prob,
                     atr=atr,
                     ema_trend=ema_trend,

@@ -17,6 +17,7 @@ import yaml
 from fastapi import APIRouter, HTTPException, Query
 
 from src.utils.indicators import add_demo_indicators
+from src.data_handler.ohlcv_schema import validate_ohlcv_schema
 
 logger = logging.getLogger(__name__)
 
@@ -39,15 +40,6 @@ def _get_asset_config(config: dict, ticker: str) -> Optional[dict]:
         if asset.get("ticker") == ticker:
             return asset
     return None
-
-
-def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Garante colunas lowercase (open, high, low, close, volume)."""
-    col_map = {"Open": "open", "High": "high", "Low": "low",
-               "Close": "close", "Volume": "volume"}
-    if any(c in df.columns for c in col_map):
-        df = df.rename(columns=col_map)
-    return df
 
 
 def _run_prediction(
@@ -132,8 +124,8 @@ def _run_prediction(
         return None
 
     # Determina sinal
-    last_close = float(df_features["close"].iloc[-1])
-    ema_20 = float(df_features["close"].ewm(span=20, adjust=False).mean().iloc[-1])
+    last_close = float(df_features["Close"].iloc[-1])
+    ema_20 = float(df_features["Close"].ewm(span=20, adjust=False).mean().iloc[-1])
     direction = "CALL" if last_close > ema_20 else "PUT"
 
     if prob_class1 >= 0.5:
@@ -226,11 +218,11 @@ async def get_chart_data(
     if raw_df.empty:
         raise HTTPException(status_code=404, detail=f"Nenhum dado retornado para {ticker} M5.")
 
-    # 3 — Normaliza colunas → lowercase
-    df = _normalize_columns(raw_df.copy())
+    validate_ohlcv_schema(raw_df, source="chart_data.get_chart_data")
+    df = raw_df.copy()
 
     # 4 — Calcula indicadores demo
-    add_demo_indicators(df, close_col="close")
+    add_demo_indicators(df, close_col="Close")
 
     # 5 — Executa predição da LSTMVolatilityStrategy
     #     (precisa de todas as features, então usamos define_features)
@@ -257,11 +249,11 @@ async def get_chart_data(
     for ts, row in df.iterrows():
         rec = {
             "time": ts.isoformat() if hasattr(ts, "isoformat") else str(ts),
-            "open": _safe_float(row.get("open")),
-            "high": _safe_float(row.get("high")),
-            "low": _safe_float(row.get("low")),
-            "close": _safe_float(row.get("close")),
-            "volume": int(row.get("volume", 0)),
+            "open": _safe_float(row.get("Open")),
+            "high": _safe_float(row.get("High")),
+            "low": _safe_float(row.get("Low")),
+            "close": _safe_float(row.get("Close")),
+            "volume": int(row.get("Volume", 0)),
             "sma_21": _safe_float(row.get("sma_21")),
             "sma_200": _safe_float(row.get("sma_200")),
             "ema_9": _safe_float(row.get("ema_9")),

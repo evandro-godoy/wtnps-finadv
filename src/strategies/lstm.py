@@ -299,7 +299,7 @@ class LSTMStrategy(BaseStrategy):
         # Médias Móveis
         df['ema_9'] = df['Close'].ewm(span=9, adjust=False).mean()
         df['sma_20'] = df['Close'].rolling(window=20).mean()
-        # df['sma_50'] = df['close'].rolling(window=50).mean()
+        # df['sma_50'] = df['Close'].rolling(window=50).mean()
         df['sma_200'] = df['Close'].rolling(window=200).mean()
 
         df['dist_sma_20'] = (df['Close'] - df['sma_20']) / df['Close']
@@ -330,7 +330,7 @@ class LSTMStrategy(BaseStrategy):
         # RSI (Índice de Força Relativa)
         """
         rsi_period = 14
-        delta = df['close'].diff()
+        delta = df['Close'].diff()
         gain = delta.where(delta > 0, 0).rolling(window=rsi_period).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=rsi_period).mean()
         

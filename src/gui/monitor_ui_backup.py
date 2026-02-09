@@ -73,11 +73,11 @@ class MonitorApp:
         self.is_running = False
         self.last_candle = {
             'timestamp': None,
-            'open': 0.0,
-            'high': 0.0,
-            'low': 0.0,
-            'close': 0.0,
-            'volume': 0
+            'Open': 0.0,
+            'High': 0.0,
+            'Low': 0.0,
+            'Close': 0.0,
+            'Volume': 0
         }
         
         # Queue para comunicação thread-safe
@@ -603,12 +603,12 @@ class MonitorApp:
         """
         try:
             # Atualiza dados do último candle no header
-            if 'open' in data and 'high' in data and 'low' in data and 'close' in data:
-                self.last_candle['open'] = data['open']
-                self.last_candle['high'] = data['high']
-                self.last_candle['low'] = data['low']
-                self.last_candle['close'] = data['close']
-                self.last_candle['volume'] = data.get('volume', 0)
+            if 'Open' in data and 'High' in data and 'Low' in data and 'Close' in data:
+                self.last_candle['Open'] = data['Open']
+                self.last_candle['High'] = data['High']
+                self.last_candle['Low'] = data['Low']
+                self.last_candle['Close'] = data['Close']
+                self.last_candle['Volume'] = data.get('Volume', 0)
                 self.last_candle['timestamp'] = data.get('timestamp')
                 
                 # Atualiza hora do candle (UTC)
@@ -621,10 +621,10 @@ class MonitorApp:
                 self.candle_time_label.config(text=time_str)
                 
                 # Formata OHLC
-                o = self.last_candle['open']
-                h = self.last_candle['high']
-                l = self.last_candle['low']
-                c = self.last_candle['close']
+                o = self.last_candle['Open']
+                h = self.last_candle['High']
+                l = self.last_candle['Low']
+                c = self.last_candle['Close']
                 
                 ohlc_text = f"O: {o:.2f} | H: {h:.2f} | L: {l:.2f} | C: {c:.2f}"
                 self.ohlc_label.config(text=ohlc_text)
@@ -640,7 +640,7 @@ class MonitorApp:
             event_type = data.get('type', 'TICK')
             
             # Formata preço
-            price = data.get('close', data.get('price', 0.0))
+            price = data.get('Close', data.get('price', 0.0))
             price_str = f"R$ {price:,.2f}".replace(',', '_').replace('.', ',').replace('_', '.')
             
             # Formata probabilidade
@@ -765,7 +765,7 @@ class MonitorApp:
         # Treeview
         buffer_tree = ttk.Treeview(
             tree_frame,
-            columns=('timestamp', 'open', 'high', 'low', 'close', 'volume'),
+            columns=('timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'),
             show='headings',
             yscrollcommand=vsb.set,
             xscrollcommand=hsb.set
@@ -784,18 +784,18 @@ class MonitorApp:
         
         # Configura colunas
         buffer_tree.heading('timestamp', text='Timestamp (UTC)')
-        buffer_tree.heading('open', text='Open')
-        buffer_tree.heading('high', text='High')
-        buffer_tree.heading('low', text='Low')
-        buffer_tree.heading('close', text='Close')
-        buffer_tree.heading('volume', text='Volume')
+        buffer_tree.heading('Open', text='Open')
+        buffer_tree.heading('High', text='High')
+        buffer_tree.heading('Low', text='Low')
+        buffer_tree.heading('Close', text='Close')
+        buffer_tree.heading('Volume', text='Volume')
         
         buffer_tree.column('timestamp', width=180, anchor=tk.W)
-        buffer_tree.column('open', width=120, anchor=tk.E)
-        buffer_tree.column('high', width=120, anchor=tk.E)
-        buffer_tree.column('low', width=120, anchor=tk.E)
-        buffer_tree.column('close', width=120, anchor=tk.E)
-        buffer_tree.column('volume', width=100, anchor=tk.E)
+        buffer_tree.column('Open', width=120, anchor=tk.E)
+        buffer_tree.column('High', width=120, anchor=tk.E)
+        buffer_tree.column('Low', width=120, anchor=tk.E)
+        buffer_tree.column('Close', width=120, anchor=tk.E)
+        buffer_tree.column('Volume', width=100, anchor=tk.E)
         
         # Popula dados (ordem reversa - mais recentes primeiro)
         df = self.monitor.buffer_df
@@ -808,11 +808,11 @@ class MonitorApp:
                 'end',
                 values=(
                     timestamp_str,
-                    f"{row['open']:.2f}",
-                    f"{row['high']:.2f}",
-                    f"{row['low']:.2f}",
-                    f"{row['close']:.2f}",
-                    int(row.get('volume', 0))
+                    f"{row['Open']:.2f}",
+                    f"{row['High']:.2f}",
+                    f"{row['Low']:.2f}",
+                    f"{row['Close']:.2f}",
+                    int(row.get('Volume', 0))
                 )
             )
         

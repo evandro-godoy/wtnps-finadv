@@ -78,11 +78,11 @@ class MonitorApp:
         self.is_running = False
         self.last_candle = {
             'timestamp': None,
-            'open': 0.0,
-            'high': 0.0,
-            'low': 0.0,
-            'close': 0.0,
-            'volume': 0
+            'Open': 0.0,
+            'High': 0.0,
+            'Low': 0.0,
+            'Close': 0.0,
+            'Volume': 0
         }
         
         # Queue para comunicação thread-safe
@@ -654,20 +654,20 @@ class MonitorApp:
         """Atualiza header, gráfico e buffer local com dados de candle."""
         try:
             timestamp = event.timestamp
-            self.last_candle['open'] = event.Open
-            self.last_candle['high'] = event.High
-            self.last_candle['low'] = event.Low
-            self.last_candle['close'] = event.Close
-            self.last_candle['volume'] = event.Volume
+            self.last_candle['Open'] = event.Open
+            self.last_candle['High'] = event.High
+            self.last_candle['Low'] = event.Low
+            self.last_candle['Close'] = event.Close
+            self.last_candle['Volume'] = event.Volume
             self.last_candle['timestamp'] = timestamp
 
             self.candle_buffer.append({
                 'timestamp': timestamp,
-                'open': event.Open,
-                'high': event.High,
-                'low': event.Low,
-                'close': event.Close,
-                'volume': event.Volume,
+                'Open': event.Open,
+                'High': event.High,
+                'Low': event.Low,
+                'Close': event.Close,
+                'Volume': event.Volume,
             })
 
             time_str = timestamp.strftime('%H:%M:%S')
@@ -682,11 +682,11 @@ class MonitorApp:
             if self.chart_widget:
                 candle_dict = {
                     'time': timestamp,
-                    'open': event.Open,
-                    'high': event.High,
-                    'low': event.Low,
-                    'close': event.Close,
-                    'volume': event.Volume,
+                    'Open': event.Open,
+                    'High': event.High,
+                    'Low': event.Low,
+                    'Close': event.Close,
+                    'Volume': event.Volume,
                 }
                 self.chart_widget.add_candle(candle_dict)
         except Exception as exc:
@@ -855,7 +855,7 @@ class MonitorApp:
         # Treeview
         buffer_tree = ttk.Treeview(
             tree_frame,
-            columns=('timestamp', 'open', 'high', 'low', 'close', 'volume'),
+            columns=('timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'),
             show='headings',
             yscrollcommand=vsb.set,
             xscrollcommand=hsb.set
@@ -874,18 +874,18 @@ class MonitorApp:
         
         # Configura colunas
         buffer_tree.heading('timestamp', text='Timestamp (UTC)')
-        buffer_tree.heading('open', text='Open')
-        buffer_tree.heading('high', text='High')
-        buffer_tree.heading('low', text='Low')
-        buffer_tree.heading('close', text='Close')
-        buffer_tree.heading('volume', text='Volume')
+        buffer_tree.heading('Open', text='Open')
+        buffer_tree.heading('High', text='High')
+        buffer_tree.heading('Low', text='Low')
+        buffer_tree.heading('Close', text='Close')
+        buffer_tree.heading('Volume', text='Volume')
         
         buffer_tree.column('timestamp', width=180, anchor=tk.W)
-        buffer_tree.column('open', width=120, anchor=tk.E)
-        buffer_tree.column('high', width=120, anchor=tk.E)
-        buffer_tree.column('low', width=120, anchor=tk.E)
-        buffer_tree.column('close', width=120, anchor=tk.E)
-        buffer_tree.column('volume', width=100, anchor=tk.E)
+        buffer_tree.column('Open', width=120, anchor=tk.E)
+        buffer_tree.column('High', width=120, anchor=tk.E)
+        buffer_tree.column('Low', width=120, anchor=tk.E)
+        buffer_tree.column('Close', width=120, anchor=tk.E)
+        buffer_tree.column('Volume', width=100, anchor=tk.E)
         
         # Popula dados (ordem reversa - mais recentes primeiro)
         for candle in reversed(self.candle_buffer):
@@ -899,11 +899,11 @@ class MonitorApp:
                 'end',
                 values=(
                     timestamp_str,
-                    f"{candle.get('open', 0.0):.2f}",
-                    f"{candle.get('high', 0.0):.2f}",
-                    f"{candle.get('low', 0.0):.2f}",
-                    f"{candle.get('close', 0.0):.2f}",
-                    int(candle.get('volume', 0))
+                    f"{candle.get('Open', 0.0):.2f}",
+                    f"{candle.get('High', 0.0):.2f}",
+                    f"{candle.get('Low', 0.0):.2f}",
+                    f"{candle.get('Close', 0.0):.2f}",
+                    int(candle.get('Volume', 0))
                 )
             )
         
